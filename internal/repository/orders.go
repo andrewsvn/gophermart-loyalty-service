@@ -1,0 +1,139 @@
+package repository
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/Masterminds/squirrel"
+	"github.com/andrewsvn/gophermart-ls/internal/db"
+	"github.com/andrewsvn/gophermart-ls/internal/model"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+)
+
+type OrderRepository struct {
+	baseRepository
+}
+
+const (
+	orderTableName = "LS_ORDERS"
+	orderColumns   = "ID, USER_ID, STATUS, ACCRUAL, CREATE_TS, LAST_UPDATE_TS"
+)
+
+func NewOrderRepository(db *db.PostgresDB) *OrderRepository {
+	return &OrderRepository{
+		baseRepository{
+			db:        db,
+			sqrl:      squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar),
+			tableName: orderTableName,
+			columns:   orderColumns,
+		},
+	}
+}
+
+func (r *OrderRepository) GetOrderById(ctx context.Context, orderId string) (*model.Order, error) {
+	rows, err := r.queryRows(ctx, func(sb squirrel.SelectBuilder) squirrel.SelectBuilder {
+		return sb.Where(squirrel.Eq{"ID": orderId})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return r.fromRow(rows)
+}
+
+func (r *OrderRepository) GetOrdersByUserId(ctx context.Context, userId uuid.UUID) ([]*model.Order, error) {
+	rows, err := r.queryRows(ctx, func(sb squirrel.SelectBuilder) squirrel.SelectBuilder {
+		return sb.Where(squirrel.Eq{"USER_ID": userId}).OrderBy("ID ASC")
+	})
+	if err != nil {
+		return nil, err
+	}
+	return r.fromRows(rows)
+}
+
+func (r *OrderRepository) GetTotalAccrualByUserId(ctx context.Context, userId uuid.UUID) (float64, error) {
+	// TODO
+	return 0, nil
+}
+
+func (r *OrderRepository) CreateOrder(ctx context.Context, orderId string, userId uuid.UUID) error {
+	exists, err := r.orderExists(ctx, orderId)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return fmt.Errorf("%w: orderId='%s'", ErrDuplicateEntity, orderId)
+	}
+
+	ts := time.Now()
+	return r.insertRow(ctx,
+		orderId,
+		userId,
+		model.OrderStatusNew,
+		0.0,
+		ts,
+		ts,
+	)
+}
+
+func (r *OrderRepository) UpdateOrder(
+	ctx context.Context,
+	orderId string,
+	status model.OrderStatus,
+	accrual float64,
+) error {
+	ok, err := r.updateRow(ctx, func(ub squirrel.UpdateBuilder) squirrel.UpdateBuilder {
+		return ub.
+			Set("STATUS", status).
+			Set("ACCRUAL", accrual).
+			Set("LAST_UPDATE_TS", time.Now()).
+			Where(squirrel.Eq{"ID": orderId})
+	})
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("%w: orderId='%s'", ErrEntityNotFound, orderId)
+	}
+	return nil
+}
+
+func (r *OrderRepository) fromRow(rows pgx.Rows) (*model.Order, error) {
+	if !rows.Next() {
+		return nil, ErrEntityNotFound
+	}
+	return r.scan(rows)
+}
+
+func (r *OrderRepository) fromRows(rows pgx.Rows) ([]*model.Order, error) {
+	orders := make([]*model.Order, 0)
+	for rows.Next() {
+		order, err := r.scan(rows)
+		if err != nil {
+			return nil, err
+		}
+		orders = append(orders, order)
+	}
+	return orders, nil
+}
+
+func (r *OrderRepository) scan(rows pgx.Rows) (*model.Order, error) {
+	var order model.Order
+	err := rows.Scan(&order.ID, &order.UserID, &order.Status, &order.Accrual, &order.CreatedAt, &order.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &order, nil
+}
+
+func (r *OrderRepository) orderExists(ctx context.Context, orderId string) (bool, error) {
+	rows, err := r.queryRows(ctx, func(sb squirrel.SelectBuilder) squirrel.SelectBuilder {
+		return sb.Where(squirrel.Eq{"ID": orderId})
+	})
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	return rows.Next(), nil
+}
