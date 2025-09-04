@@ -39,6 +39,8 @@ func (r *OrderRepository) GetOrderById(ctx context.Context, orderId string) (*mo
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
+
 	return r.fromRow(rows)
 }
 
@@ -49,12 +51,36 @@ func (r *OrderRepository) GetOrdersByUserId(ctx context.Context, userId uuid.UUI
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
+
 	return r.fromRows(rows)
 }
 
 func (r *OrderRepository) GetTotalAccrualByUserId(ctx context.Context, userId uuid.UUID) (float64, error) {
-	// TODO
-	return 0, nil
+	sqlQuery, args, err := r.sqrl.
+		Select("SUM(ACCRUAL)").
+		From(r.tableName).
+		Where(squirrel.Eq{"USER_ID": userId}).
+		ToSql()
+	if err != nil {
+		return 0, fmt.Errorf("%w: %v", ErrInvalidQuery, err)
+	}
+
+	rows, err := r.db.Pool().Query(ctx, sqlQuery, args...)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %v", ErrDatabaseNotAvailable, err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return 0, nil
+	}
+
+	var total float64
+	if err := rows.Scan(&total); err != nil {
+		return 0, fmt.Errorf("%w: %v", ErrDatabaseNotAvailable, err)
+	}
+	return total, nil
 }
 
 func (r *OrderRepository) CreateOrder(ctx context.Context, orderId string, userId uuid.UUID) error {
@@ -115,6 +141,10 @@ func (r *OrderRepository) fromRows(rows pgx.Rows) ([]*model.Order, error) {
 		}
 		orders = append(orders, order)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return orders, nil
 }
 
@@ -135,5 +165,6 @@ func (r *OrderRepository) orderExists(ctx context.Context, orderId string) (bool
 		return false, err
 	}
 	defer rows.Close()
+
 	return rows.Next(), nil
 }
