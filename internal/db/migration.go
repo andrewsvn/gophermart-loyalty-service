@@ -8,13 +8,15 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"go.uber.org/zap"
+
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 )
 
 //go:embed migration/*.sql
 var migrationFS embed.FS
 
 func Migrate(dbConnString string, logger *zap.Logger) error {
-	fs, err := iofs.New(migrationFS, ".")
+	fs, err := iofs.New(migrationFS, "migration")
 	if err != nil {
 		return fmt.Errorf("can't find migration files: %w", err)
 	}

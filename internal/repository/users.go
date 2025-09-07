@@ -57,44 +57,45 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id string) (*model.Use
 }
 
 func (r *UserRepository) CreateUser(ctx context.Context, login, authHash string) (*uuid.UUID, error) {
-	exists, err := r.userExists(ctx, login)
+	newId := uuid.New()
+	sqlQuery, args, err := r.sqrl.
+		Insert(r.tableName).
+		Columns(
+			"ID",
+			"LOGIN",
+			"AUTH_HASH",
+			"CREATE_TS",
+			"LAST_LOGIN_TS",
+		).
+		Values(
+			newId.String(),
+			login,
+			authHash,
+			time.Now(),
+			nil,
+		).
+		ToSql()
 	if err != nil {
 		return nil, err
-	}
-	if exists {
-		return nil, fmt.Errorf("%w: login='%s'", ErrDuplicateEntity, login)
 	}
 
-	newId := uuid.New()
-	err = r.insertRow(ctx,
-		newId,
-		login,
-		authHash,
-		time.Now(),
-		nil,
-	)
+	_, err = r.db.Pool().Exec(ctx, sqlQuery, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error inserting row into table %s: %w", r.tableName, err)
 	}
+
 	return &newId, nil
 }
 
-func (r *UserRepository) UpdateUserLoginTs(ctx context.Context, userId uuid.UUID) error {
-	ok, err := r.updateRow(ctx, func(ub squirrel.UpdateBuilder) squirrel.UpdateBuilder {
+func (r *UserRepository) UpdateUserLoginTs(ctx context.Context, userId uuid.UUID) (bool, error) {
+	return r.updateRow(ctx, func(ub squirrel.UpdateBuilder) squirrel.UpdateBuilder {
 		return ub.
 			Set("LAST_LOGIN_TS", time.Now()).
 			Where(squirrel.Eq{"ID": userId})
 	})
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return ErrEntityNotFound
-	}
-	return nil
 }
 
-func (r *UserRepository) userExists(ctx context.Context, login string) (bool, error) {
+func (r *UserRepository) CheckUserExistsByLogin(ctx context.Context, login string) (bool, error) {
 	rows, err := r.queryRows(ctx, func(sb squirrel.SelectBuilder) squirrel.SelectBuilder {
 		return sb.Where(squirrel.Eq{"LOGIN": login})
 	})
@@ -107,13 +108,13 @@ func (r *UserRepository) userExists(ctx context.Context, login string) (bool, er
 
 func (r *UserRepository) fromRow(rows pgx.Rows) (*model.User, error) {
 	if !rows.Next() {
-		return nil, ErrEntityNotFound
+		return nil, nil
 	}
 
 	var user model.User
-	err := rows.Scan(&user.Id, &user.Login, &user.AuthHash, &user.CreatedAt, &user.LastLoginAt)
+	err := rows.Scan(&user.ID, &user.Login, &user.AuthHash, &user.CreatedAt, &user.LastLoginAt)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrDatabaseNotAvailable, err)
+		return nil, fmt.Errorf("error scanning row from table %s: %w", r.tableName, err)
 	}
 	return &user, nil
 }

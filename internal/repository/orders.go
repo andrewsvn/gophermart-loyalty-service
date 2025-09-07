@@ -68,7 +68,7 @@ func (r *OrderRepository) GetTotalAccrualByUserId(ctx context.Context, userId uu
 
 	rows, err := r.db.Pool().Query(ctx, sqlQuery, args...)
 	if err != nil {
-		return 0, fmt.Errorf("%w: %v", ErrDatabaseNotAvailable, err)
+		return 0, fmt.Errorf("error querying rows from table %s: %w", r.tableName, err)
 	}
 	defer rows.Close()
 
@@ -78,7 +78,7 @@ func (r *OrderRepository) GetTotalAccrualByUserId(ctx context.Context, userId uu
 
 	var total float64
 	if err := rows.Scan(&total); err != nil {
-		return 0, fmt.Errorf("%w: %v", ErrDatabaseNotAvailable, err)
+		return 0, fmt.Errorf("error scanning rows from table %s: %w", r.tableName, err)
 	}
 	return total, nil
 }
@@ -142,7 +142,7 @@ func (r *OrderRepository) fromRows(rows pgx.Rows) ([]*model.Order, error) {
 		orders = append(orders, order)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error reading rows from table %s: %w", r.tableName, err)
 	}
 
 	return orders, nil

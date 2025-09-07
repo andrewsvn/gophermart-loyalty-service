@@ -13,8 +13,9 @@ services:
     env_file:
       - .env
     environment:
+      RUN_ADDRESS: 0.0.0.0:8080
       ACCRUAL_SYSTEM_ADDRESS: ${ACCRUAL_SYSTEM_ADDRESS}
-      DATABASE_URI: postgres://${DB_USER}:${DB_PASS}@localhost:${DB_PORT:-5432}/${DB_NAME}?sslmode=disable
+      DATABASE_URI: postgres://${DB_USER}:${DB_PASS}@pgdb:${DB_PORT:-5432}/${DB_NAME}?sslmode=disable
 
   pgdb:
     image: postgres:17

@@ -15,29 +15,39 @@ import (
 )
 
 type RouteProvider interface {
-	RegisterRoutes(r *chi.Mux)
+	RegisterRoutes(r chi.Router)
+	SetHandlersLogger(hl *zap.SugaredLogger)
 }
+
+const (
+	baseAPIPath = "/api/user"
+)
 
 type RestServer struct {
 	httpSrv *http.Server
 	logger  *zap.SugaredLogger
 }
 
-func NewRestServer(cfg config.ServerConfig, providers []RouteProvider, l *zap.Logger) *RestServer {
+func NewRestServer(cfg *config.ServerConfig, l *zap.Logger, providers ...RouteProvider) *RestServer {
+	logger := logging.ComponentLogger(l, "rest-server")
+
 	r := chi.NewRouter()
 	// common middleware
 	r.Use(middleware.NewHTTPLogging(l).Middleware)
 
-	for _, provider := range providers {
-		provider.RegisterRoutes(r)
-	}
+	r.Route(baseAPIPath, func(r chi.Router) {
+		for _, provider := range providers {
+			provider.RegisterRoutes(r)
+			provider.SetHandlersLogger(logger)
+		}
+	})
 
 	return &RestServer{
 		httpSrv: &http.Server{
 			Addr:    strings.Trim(cfg.Url, "\""),
 			Handler: r,
 		},
-		logger: logging.ComponentLogger(l, "rest-server"),
+		logger: logger,
 	}
 }
 

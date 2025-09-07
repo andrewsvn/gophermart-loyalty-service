@@ -74,7 +74,7 @@ func (r *WithdrawalRepository) GetTotalWithdrawalsByUserId(
 
 	rows, err := r.db.Pool().Query(ctx, sqlQuery, args...)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("error querying rows from table %s: %w", r.tableName, err)
 	}
 	defer rows.Close()
 
@@ -84,7 +84,7 @@ func (r *WithdrawalRepository) GetTotalWithdrawalsByUserId(
 
 	var total float64
 	if err := rows.Scan(&total); err != nil {
-		return 0, fmt.Errorf("%w: %v", ErrDatabaseNotAvailable, err)
+		return 0, fmt.Errorf("error scanning row from table %s: %w", r.tableName, err)
 	}
 	return total, nil
 }
@@ -115,7 +115,7 @@ func (r *WithdrawalRepository) fromRows(rows pgx.Rows) ([]*model.Withdrawal, err
 		wds = append(wds, wd)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error reading rows from table %s: %w", r.tableName, err)
 	}
 
 	return wds, nil

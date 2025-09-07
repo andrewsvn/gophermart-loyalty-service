@@ -24,12 +24,12 @@ func (r *baseRepository) queryRows(
 	sb := r.sqrl.Select(r.columns).From(r.tableName)
 	sqlQuery, args, err := selectCriteria(sb).ToSql()
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidQuery, err)
+		return nil, fmt.Errorf("%v: %w", ErrInvalidQuery, err)
 	}
 
 	rows, err := r.db.Pool().Query(ctx, sqlQuery, args...)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrDatabaseNotAvailable, err)
+		return nil, fmt.Errorf("error querying rows from table %s: %w", r.tableName, err)
 	}
 	return rows, nil
 }
@@ -40,12 +40,12 @@ func (r *baseRepository) insertRow(
 ) error {
 	sqlQuery, args, err := r.sqrl.Insert(r.tableName).Columns(r.columns).Values(values...).ToSql()
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidQuery, err)
+		return fmt.Errorf("%v: %w", ErrInvalidQuery, err)
 	}
 
-	_, err = r.db.Pool().Exec(ctx, sqlQuery, args)
+	_, err = r.db.Pool().Exec(ctx, sqlQuery, args...)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrDatabaseNotAvailable, err)
+		return fmt.Errorf("error inserting row into table %s: %w", r.tableName, err)
 	}
 	return nil
 }
@@ -57,12 +57,12 @@ func (r *baseRepository) updateRow(
 	ub := r.sqrl.Update(r.tableName)
 	sqlQuery, args, err := updateClause(ub).ToSql()
 	if err != nil {
-		return false, fmt.Errorf("%w: %v", ErrInvalidQuery, err)
+		return false, fmt.Errorf("%v: %w", ErrInvalidQuery, err)
 	}
 
 	res, err := r.db.Pool().Exec(ctx, sqlQuery, args...)
 	if err != nil {
-		return false, fmt.Errorf("%w: %v", ErrDatabaseNotAvailable, err)
+		return false, fmt.Errorf("error updating row in table %s: %w", r.tableName, err)
 	}
 	return res.RowsAffected() > 0, nil
 }

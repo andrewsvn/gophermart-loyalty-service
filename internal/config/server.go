@@ -16,9 +16,9 @@ type ServerConfig struct {
 	LogConfig
 	AuthConfig
 
-	Url               string `env:"RUN_ADDRESS" envDefault:"http://localhost:8080"`
+	Url               string `env:"RUN_ADDRESS" envDefault:"localhost:8080"`
 	AccrualServiceUrl string `env:"ACCRUAL_SYSTEM_ADDRESS"`
-	DatabaseUrl       string `env:"DATABASE_URI" envDefault:"localhost:5432"`
+	DatabaseUrl       string `env:"DATABASE_URI"`
 }
 
 func GetServerConfig() (*ServerConfig, error) {
@@ -40,6 +40,7 @@ func GetServerConfig() (*ServerConfig, error) {
 
 func (cfg *ServerConfig) BindFlags() {
 	cfg.LogConfig.BindFlags()
+	cfg.AuthConfig.BindFlags()
 
 	flag.StringVar(&cfg.Url, "a", cfg.Url,
 		"The address to run the service on")

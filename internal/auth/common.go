@@ -8,7 +8,7 @@ import (
 func LoginPassHashBytes(login, password string) []byte {
 	sha := sha256.New()
 	sha.Write([]byte(login))
-	sha.Write([]byte("@#$"))
+	sha.Write([]byte("@"))
 	sha.Write([]byte(password))
 	return sha.Sum(nil)
 }
