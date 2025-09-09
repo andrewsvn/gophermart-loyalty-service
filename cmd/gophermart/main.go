@@ -55,16 +55,17 @@ func run() error {
 
 	userRepo := repository.NewUserRepository(pgdb)
 	orderRepo := repository.NewOrderRepository(pgdb)
+	withdrawalRepo := repository.NewWithdrawalRepository(pgdb)
 
 	logger.Info("initializing identity provider")
-	idp, err := auth.NewIdentityProvider(&cfg.AuthConfig)
+	idp, err := auth.NewIdentityProvider(&cfg.AuthConfig, userRepo)
 	if err != nil {
 		return err
 	}
 
 	logger.Info("initializing service layer")
 	userService := service.NewUserService(userRepo, idp, logger)
-	orderService := service.NewOrderService(orderRepo, userRepo, logger)
+	orderService := service.NewOrderService(orderRepo, withdrawalRepo, logger)
 
 	logger.Info("initializing HTTP server")
 	userHandlers := handlers.NewUserManagementHandlers(userService)

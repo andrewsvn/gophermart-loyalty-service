@@ -59,12 +59,12 @@ func (r *WithdrawalRepository) GetWithdrawalsByUserID(
 	return r.fromRows(rows)
 }
 
-func (r *WithdrawalRepository) GetTotalWithdrawalsByUserId(
+func (r *WithdrawalRepository) GetTotalWithdrawnByUserId(
 	ctx context.Context,
 	userID uuid.UUID,
 ) (float64, error) {
 	sqlQuery, args, err := r.sqrl.
-		Select("SUM(AMOUNT)").
+		Select("COALESCE(SUM(AMOUNT), 0)").
 		From(r.tableName).
 		Where(squirrel.Eq{"USER_ID": userID}).
 		ToSql()

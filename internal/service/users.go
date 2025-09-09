@@ -9,6 +9,7 @@ import (
 	"github.com/andrewsvn/gophermart-ls/internal/logging"
 	"github.com/andrewsvn/gophermart-ls/internal/model"
 	"github.com/andrewsvn/gophermart-ls/internal/repository"
+	"github.com/andrewsvn/gophermart-ls/internal/utils"
 	"go.uber.org/zap"
 )
 
@@ -40,7 +41,7 @@ func (s *UserService) RegisterUser(ctx context.Context, login, password string) 
 		return fmt.Errorf("%w: %s", ErrUserAlreadyExists, login)
 	}
 
-	authHash := auth.LoginPassHash(login, password)
+	authHash := utils.LoginPassHash(login, password)
 	userID, err := s.repo.CreateUser(ctx, login, authHash)
 	if err != nil {
 		return fmt.Errorf("unable to create user: %w", err)
@@ -63,7 +64,7 @@ func (s *UserService) LoginUser(ctx context.Context, login, password string) (*m
 		return nil, ErrWrongLoginPassword
 	}
 
-	authHash := auth.LoginPassHash(login, password)
+	authHash := utils.LoginPassHash(login, password)
 	if user.AuthHash != authHash {
 		return nil, ErrWrongLoginPassword
 	}

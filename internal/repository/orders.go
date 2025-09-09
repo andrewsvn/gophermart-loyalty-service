@@ -32,7 +32,7 @@ func NewOrderRepository(db *db.PostgresDB) *OrderRepository {
 	}
 }
 
-func (r *OrderRepository) GetOrderById(ctx context.Context, orderId string) (*model.Order, error) {
+func (r *OrderRepository) GetOrderByID(ctx context.Context, orderId string) (*model.Order, error) {
 	rows, err := r.queryRows(ctx, func(sb squirrel.SelectBuilder) squirrel.SelectBuilder {
 		return sb.Where(squirrel.Eq{"ID": orderId})
 	})
@@ -58,7 +58,7 @@ func (r *OrderRepository) GetOrdersByUserId(ctx context.Context, userId uuid.UUI
 
 func (r *OrderRepository) GetTotalAccrualByUserId(ctx context.Context, userId uuid.UUID) (float64, error) {
 	sqlQuery, args, err := r.sqrl.
-		Select("SUM(ACCRUAL)").
+		Select("COALESCE(SUM(ACCRUAL), 0)").
 		From(r.tableName).
 		Where(squirrel.Eq{"USER_ID": userId}).
 		ToSql()
@@ -83,15 +83,7 @@ func (r *OrderRepository) GetTotalAccrualByUserId(ctx context.Context, userId uu
 	return total, nil
 }
 
-func (r *OrderRepository) CreateOrder(ctx context.Context, orderId string, userId uuid.UUID) error {
-	exists, err := r.orderExists(ctx, orderId)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return fmt.Errorf("%w: orderId='%s'", ErrDuplicateEntity, orderId)
-	}
-
+func (r *OrderRepository) CreateNewOrder(ctx context.Context, orderId string, userId uuid.UUID) error {
 	ts := time.Now()
 	return r.insertRow(ctx,
 		orderId,
@@ -127,7 +119,7 @@ func (r *OrderRepository) UpdateOrder(
 
 func (r *OrderRepository) fromRow(rows pgx.Rows) (*model.Order, error) {
 	if !rows.Next() {
-		return nil, ErrEntityNotFound
+		return nil, nil
 	}
 	return r.scan(rows)
 }
@@ -155,16 +147,4 @@ func (r *OrderRepository) scan(rows pgx.Rows) (*model.Order, error) {
 		return nil, err
 	}
 	return &order, nil
-}
-
-func (r *OrderRepository) orderExists(ctx context.Context, orderId string) (bool, error) {
-	rows, err := r.queryRows(ctx, func(sb squirrel.SelectBuilder) squirrel.SelectBuilder {
-		return sb.Where(squirrel.Eq{"ID": orderId})
-	})
-	if err != nil {
-		return false, err
-	}
-	defer rows.Close()
-
-	return rows.Next(), nil
 }

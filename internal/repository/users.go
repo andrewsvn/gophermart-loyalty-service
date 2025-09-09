@@ -44,9 +44,9 @@ func (r *UserRepository) GetUserByLogin(ctx context.Context, login string) (*mod
 	return r.fromRow(rows)
 }
 
-func (r *UserRepository) GetUserByID(ctx context.Context, id string) (*model.User, error) {
+func (r *UserRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
 	rows, err := r.queryRows(ctx, func(sb squirrel.SelectBuilder) squirrel.SelectBuilder {
-		return sb.Where(squirrel.Eq{"ID": id})
+		return sb.Where(squirrel.Eq{"ID": id.String()})
 	})
 	if err != nil {
 		return nil, err
@@ -58,28 +58,15 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id string) (*model.Use
 
 func (r *UserRepository) CreateUser(ctx context.Context, login, authHash string) (*uuid.UUID, error) {
 	newId := uuid.New()
-	sqlQuery, args, err := r.sqrl.
-		Insert(r.tableName).
-		Columns(
-			"ID",
-			"LOGIN",
-			"AUTH_HASH",
-			"CREATE_TS",
-			"LAST_LOGIN_TS",
-		).
-		Values(
+	err := r.insertRow(ctx, func(ib squirrel.InsertBuilder) squirrel.InsertBuilder {
+		return ib.Values(
 			newId.String(),
 			login,
 			authHash,
 			time.Now(),
 			nil,
-		).
-		ToSql()
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = r.db.Pool().Exec(ctx, sqlQuery, args...)
+		)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("error inserting row into table %s: %w", r.tableName, err)
 	}

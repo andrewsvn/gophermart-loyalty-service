@@ -7,6 +7,9 @@ build:
 test:
 	go test ./...
 
+generate-testdata-build:
+	go build -o ./cmd/datagen/ ./cmd/datagen
+
 compose-up:
 	docker compose --env-file $(ENV_FILE) up --build -d
 
