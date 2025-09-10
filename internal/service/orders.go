@@ -9,6 +9,7 @@ import (
 	"github.com/andrewsvn/gophermart-ls/internal/logging"
 	"github.com/andrewsvn/gophermart-ls/internal/model"
 	"github.com/andrewsvn/gophermart-ls/internal/repository"
+	"github.com/andrewsvn/gophermart-ls/internal/utils"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -21,8 +22,10 @@ type OrderService struct {
 }
 
 var (
+	ErrInvalidOrderID          = errors.New("order ID has incorrect format")
 	ErrOrderExistsForSameUser  = errors.New("order already exists for the same user")
 	ErrOrderExistsForOtherUser = errors.New("order already exists for another user")
+	ErrNotEnoughFunds          = errors.New("not enough loyalty points available")
 )
 
 func NewOrderService(
@@ -40,6 +43,10 @@ func NewOrderService(
 // RegisterOrder checks if order is already created, and if not - creates new order in system.
 // Otherwise, returns error depending on user for which existing order is registered
 func (s *OrderService) RegisterOrder(ctx context.Context, userID uuid.UUID, orderID string) error {
+	if !utils.IsValidLuhnNumber(orderID) {
+		return ErrInvalidOrderID
+	}
+
 	existingOrder, err := s.orderRepo.GetOrderByID(ctx, orderID)
 	if err != nil {
 		return fmt.Errorf("error getting existing order: %w", err)
@@ -64,6 +71,19 @@ func (s *OrderService) GetOrdersList(ctx context.Context, userID uuid.UUID) ([]*
 }
 
 func (s *OrderService) RegisterWithdrawal(ctx context.Context, userID uuid.UUID, wdOrder *model.WithdrawOrder) error {
+	if !utils.IsValidLuhnNumber(wdOrder.OrderID) {
+		return ErrInvalidOrderID
+	}
+
+	balance, err := s.GetUserBalance(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("error checking user balance: %w", err)
+	}
+
+	if wdOrder.Sum > balance.Current {
+		return ErrNotEnoughFunds
+	}
+
 	return s.withdrawalRepo.CreateWithdrawal(ctx, wdOrder.OrderID, userID, wdOrder.Sum)
 }
 

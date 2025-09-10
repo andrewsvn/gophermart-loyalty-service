@@ -142,7 +142,7 @@ func (r *OrderRepository) fromRows(rows pgx.Rows) ([]*model.Order, error) {
 
 func (r *OrderRepository) scan(rows pgx.Rows) (*model.Order, error) {
 	var order model.Order
-	err := rows.Scan(&order.ID, &order.UserID, &order.Status, &order.Accrual, &order.CreatedAt, &order.UpdatedAt)
+	err := rows.Scan(&order.ID, &order.UserID, &order.Status, &order.Accrual, &order.UploadedAt, &order.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}

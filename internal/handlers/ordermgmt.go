@@ -12,7 +12,6 @@ import (
 	"github.com/andrewsvn/gophermart-ls/internal/handlers/middleware"
 	"github.com/andrewsvn/gophermart-ls/internal/model"
 	"github.com/andrewsvn/gophermart-ls/internal/service"
-	"github.com/andrewsvn/gophermart-ls/internal/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -38,17 +37,19 @@ func NewOrderManagementHandlers(
 }
 
 func (h *OrderManagementHandlers) RegisterRoutes(r chi.Router) {
-	r.With(h.authenticator.Middleware).Route("/orders", func(r chi.Router) {
+	authR := r.With(h.authenticator.Middleware)
+
+	authR.Route("/orders", func(r chi.Router) {
 		r.Post("/", h.newOrderHandler())
 		r.With(h.compressor.Middleware).Get("/", h.getOrdersHandler())
 	})
-	r.With(h.authenticator.Middleware).Route("/balance", func(r chi.Router) {
+	authR.Route("/balance", func(r chi.Router) {
 		r.Get("/", h.getBalanceHandler())
 		r.Route("/withdraw", func(r chi.Router) {
 			r.Post("/", h.withdrawHandler())
 		})
 	})
-	r.With(h.authenticator.Middleware).Route("/withdrawals", func(r chi.Router) {
+	authR.Route("/withdrawals", func(r chi.Router) {
 		r.With(h.compressor.Middleware).Get("/", h.getWithdrawalsHandler())
 	})
 }
@@ -59,8 +60,7 @@ func (h *OrderManagementHandlers) SetHandlersLogger(logger *zap.SugaredLogger) {
 
 func (h *OrderManagementHandlers) newOrderHandler() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		userId, ok := h.getUserId(ctx)
+		ctx, userId, ok := h.getContextAndUserId(r)
 		if !ok {
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
@@ -78,16 +78,16 @@ func (h *OrderManagementHandlers) newOrderHandler() http.HandlerFunc {
 			http.Error(rw, "orderId is required", http.StatusBadRequest)
 			return
 		}
-		if !utils.IsValidLuhnNumber(orderID) {
-			http.Error(rw, "order ID has incorrect format", http.StatusUnprocessableEntity)
-			return
-		}
 
 		h.logger.Debugw("registering new order", "userId", userId, "orderId", orderID)
 		err = h.orderService.RegisterOrder(ctx, userId, orderID)
 		if err != nil {
+			if errors.Is(err, service.ErrInvalidOrderID) {
+				http.Error(rw, err.Error(), http.StatusUnprocessableEntity)
+				return
+			}
 			if errors.Is(err, service.ErrOrderExistsForOtherUser) {
-				http.Error(rw, "order already registered for other user", http.StatusConflict)
+				http.Error(rw, err.Error(), http.StatusConflict)
 				return
 			}
 			if errors.Is(err, service.ErrOrderExistsForSameUser) {
@@ -110,8 +110,7 @@ func (h *OrderManagementHandlers) newOrderHandler() http.HandlerFunc {
 
 func (h *OrderManagementHandlers) getOrdersHandler() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		userId, ok := h.getUserId(ctx)
+		ctx, userId, ok := h.getContextAndUserId(r)
 		if !ok {
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
@@ -134,20 +133,13 @@ func (h *OrderManagementHandlers) getOrdersHandler() http.HandlerFunc {
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-
-		rw.Header().Set("Content-Type", "application/json")
-		rw.WriteHeader(http.StatusOK)
-		_, err = rw.Write(payload)
-		if err != nil {
-			h.logger.Errorw("failed to write response", "error", err)
-		}
+		h.writeJsonPayload(rw, http.StatusOK, payload)
 	}
 }
 
 func (h *OrderManagementHandlers) getBalanceHandler() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		userId, ok := h.getUserId(ctx)
+		ctx, userId, ok := h.getContextAndUserId(r)
 		if !ok {
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
@@ -166,20 +158,13 @@ func (h *OrderManagementHandlers) getBalanceHandler() http.HandlerFunc {
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-
-		rw.Header().Set("Content-Type", "application/json")
-		rw.WriteHeader(http.StatusOK)
-		_, err = rw.Write(payload)
-		if err != nil {
-			h.logger.Errorw("failed to write response", "error", err)
-		}
+		h.writeJsonPayload(rw, http.StatusOK, payload)
 	}
 }
 
 func (h *OrderManagementHandlers) withdrawHandler() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		userId, ok := h.getUserId(ctx)
+		ctx, userId, ok := h.getContextAndUserId(r)
 		if !ok {
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
@@ -195,28 +180,20 @@ func (h *OrderManagementHandlers) withdrawHandler() http.HandlerFunc {
 			http.Error(rw, "orderID is required", http.StatusBadRequest)
 			return
 		}
-		if !utils.IsValidLuhnNumber(wdOrder.OrderID) {
-			http.Error(rw, "orderID has incorrect format", http.StatusUnprocessableEntity)
-			return
-		}
-
 		if wdOrder.Sum <= 0 {
-			http.Error(rw, "positive sum is required", http.StatusBadRequest)
-		}
-
-		balance, err := h.orderService.GetUserBalance(ctx, userId)
-		if err != nil {
-			h.logger.Errorw("error getting user balance", "error", err)
-			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-
-		if wdOrder.Sum > balance.Current {
-			http.Error(rw, "not enough bonuses available", http.StatusPaymentRequired)
+			http.Error(rw, "sum must be a positive numeric value", http.StatusBadRequest)
 		}
 
 		err = h.orderService.RegisterWithdrawal(ctx, userId, wdOrder)
 		if err != nil {
+			if errors.Is(err, service.ErrInvalidOrderID) {
+				http.Error(rw, err.Error(), http.StatusUnprocessableEntity)
+				return
+			}
+			if errors.Is(err, service.ErrNotEnoughFunds) {
+				http.Error(rw, err.Error(), http.StatusPaymentRequired)
+				return
+			}
 			h.logger.Errorw("error registering withdrawal", "error", err)
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
@@ -228,8 +205,7 @@ func (h *OrderManagementHandlers) withdrawHandler() http.HandlerFunc {
 
 func (h *OrderManagementHandlers) getWithdrawalsHandler() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		userId, ok := h.getUserId(ctx)
+		ctx, userId, ok := h.getContextAndUserId(r)
 		if !ok {
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
@@ -248,20 +224,25 @@ func (h *OrderManagementHandlers) getWithdrawalsHandler() http.HandlerFunc {
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		rw.Header().Set("Content-Type", "application/json")
-		rw.WriteHeader(http.StatusOK)
-		_, err = rw.Write(payload)
-		if err != nil {
-			h.logger.Errorw("failed to write response", "error", err)
-		}
+		h.writeJsonPayload(rw, http.StatusOK, payload)
 	}
 }
 
-func (h *OrderManagementHandlers) getUserId(ctx context.Context) (uuid.UUID, bool) {
+func (h *OrderManagementHandlers) getContextAndUserId(r *http.Request) (context.Context, uuid.UUID, bool) {
+	ctx := r.Context()
 	userId, ok := ctx.Value(middleware.AuthorizedUserIDVar).(uuid.UUID)
 	if !ok {
 		h.logger.Errorw("failed to get authenticated user id")
-		return uuid.Nil, false
+		return ctx, uuid.Nil, false
 	}
-	return userId, true
+	return ctx, userId, true
+}
+
+func (h *OrderManagementHandlers) writeJsonPayload(rw http.ResponseWriter, httpCode int, payload []byte) {
+	rw.Header().Set("Content-Type", "application/json")
+	rw.WriteHeader(httpCode)
+	_, err := rw.Write(payload)
+	if err != nil {
+		h.logger.Errorw("failed to write response", "error", err)
+	}
 }

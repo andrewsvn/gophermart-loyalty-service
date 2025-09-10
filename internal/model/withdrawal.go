@@ -3,8 +3,8 @@ package model
 import "time"
 
 type Withdrawal struct {
-	ID        string    `json:"id"`
-	UserID    string    `json:"userId"`
-	Amount    int       `json:"amount"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID          string    `json:"order"`
+	UserID      string    `json:"-"`
+	Sum         int       `json:"sum"`
+	ProcessedAt time.Time `json:"processedAt"`
 }

@@ -123,7 +123,7 @@ func (r *WithdrawalRepository) fromRows(rows pgx.Rows) ([]*model.Withdrawal, err
 
 func (r *WithdrawalRepository) scan(rows pgx.Rows) (*model.Withdrawal, error) {
 	wd := model.Withdrawal{}
-	err := rows.Scan(&wd.ID, &wd.UserID, &wd.Amount, &wd.CreatedAt)
+	err := rows.Scan(&wd.ID, &wd.UserID, &wd.Sum, &wd.ProcessedAt)
 	if err != nil {
 		return nil, err
 	}

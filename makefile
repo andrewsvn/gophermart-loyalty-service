@@ -8,7 +8,10 @@ test:
 	go test ./...
 
 generate-testdata-build:
-	go build -o ./cmd/datagen/ ./cmd/datagen
+	go build -o ./cmd/tools/datagen/ ./cmd/tools/datagen
+
+fake-accrual-build:
+	go build -o ./cmd/tools/accrual_fake/ ./cmd/tools/accrual_fake
 
 compose-up:
 	docker compose --env-file $(ENV_FILE) up --build -d
