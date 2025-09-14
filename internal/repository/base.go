@@ -50,7 +50,7 @@ func (r *baseRepository) insertRow(
 	return nil
 }
 
-func (r *baseRepository) updateRow(
+func (r *baseRepository) updateRows(
 	ctx context.Context,
 	updateClause func(squirrel.UpdateBuilder) squirrel.UpdateBuilder,
 ) (bool, error) {

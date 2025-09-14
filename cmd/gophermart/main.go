@@ -10,6 +10,7 @@ import (
 	"github.com/andrewsvn/gophermart-ls/internal/config"
 	"github.com/andrewsvn/gophermart-ls/internal/db"
 	"github.com/andrewsvn/gophermart-ls/internal/handlers"
+	"github.com/andrewsvn/gophermart-ls/internal/integration"
 	"github.com/andrewsvn/gophermart-ls/internal/logging"
 	"github.com/andrewsvn/gophermart-ls/internal/repository"
 	"github.com/andrewsvn/gophermart-ls/internal/service"
@@ -17,7 +18,9 @@ import (
 )
 
 func main() {
-	log.Fatal(run())
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func run() error {
@@ -75,13 +78,20 @@ func run() error {
 		orderHandlers,
 	)
 
+	logger.Info("initializing accrual system integration")
+	accrualInt := integration.NewAccrualPollingQueue(orderRepo, cfg.AccrualServiceUrl, logger)
+
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
 
+	logger.Info("starting application routines")
 	server.Start()
+	accrualInt.Start()
 
 	<-stop
-	logger.Info("shutting down HTTP server")
+	logger.Info("shutting down application routines")
+
+	accrualInt.Shutdown()
 	server.GracefulShutdown()
 	return nil
 }

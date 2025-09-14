@@ -95,26 +95,79 @@ func (r *OrderRepository) CreateNewOrder(ctx context.Context, orderId string, us
 	)
 }
 
-func (r *OrderRepository) UpdateOrder(
+func (r *OrderRepository) UpdateOrderAccrual(
 	ctx context.Context,
-	orderId string,
-	status model.OrderStatus,
-	accrual float64,
+	orderAccrual *model.OrderAccrual,
+	timestamp time.Time,
 ) error {
-	ok, err := r.updateRow(ctx, func(ub squirrel.UpdateBuilder) squirrel.UpdateBuilder {
+	ok, err := r.updateRows(ctx, func(ub squirrel.UpdateBuilder) squirrel.UpdateBuilder {
 		return ub.
-			Set("STATUS", status).
-			Set("ACCRUAL", accrual).
-			Set("LAST_UPDATE_TS", time.Now()).
-			Where(squirrel.Eq{"ID": orderId})
+			Set("STATUS", orderAccrual.Status).
+			Set("ACCRUAL", orderAccrual.Accrual).
+			Set("LAST_UPDATE_TS", timestamp).
+			Set("PENDING", false).
+			Where(squirrel.Eq{"ID": orderAccrual.OrderID})
 	})
 	if err != nil {
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("%w: orderId='%s'", ErrEntityNotFound, orderId)
+		return fmt.Errorf("%w: orderId='%s'", ErrEntityNotFound, orderAccrual.OrderID)
 	}
 	return nil
+}
+
+func (r *OrderRepository) FetchOrderIDsForUpdate(ctx context.Context, limit uint64) ([]string, error) {
+	filterSql, _, err := r.sqrl.
+		Select("ID").
+		From(r.tableName).
+		Where(squirrel.Expr("(STATUS = 'NEW' OR STATUS = 'PROCESSING') AND PENDING <> true")).
+		OrderBy("LAST_UPDATE_TS ASC").
+		Limit(limit).
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("error building filter query: %w", err)
+	}
+
+	sqlQuery, args, err := r.sqrl.
+		Update(r.tableName).
+		Set("PENDING", true).
+		Where(squirrel.Expr("ID IN (" + filterSql + ")")).
+		Suffix("RETURNING ID").
+		ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("error building update query: %w", err)
+	}
+
+	rows, err := r.db.Pool().Query(ctx, sqlQuery, args...)
+	if err != nil {
+		return nil, fmt.Errorf("error executing update query on table %s: %w", r.tableName, err)
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("error scanning update result row: %w", err)
+		}
+		ids = append(ids, id)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error scanning update result: %w", err)
+	}
+
+	return ids, nil
+}
+
+func (r *OrderRepository) ResetPendingOrders(ctx context.Context) error {
+	_, err := r.updateRows(ctx, func(ub squirrel.UpdateBuilder) squirrel.UpdateBuilder {
+		return ub.
+			Set("PENDING", false).
+			Where(squirrel.Eq{"PENDING": true})
+	})
+	return err
 }
 
 func (r *OrderRepository) fromRow(rows pgx.Rows) (*model.Order, error) {

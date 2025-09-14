@@ -11,6 +11,7 @@ type DatagenConfig struct {
 	LogConfig
 
 	DatabaseUrl string `env:"DATABASE_URI"`
+	IsCleanup   bool
 }
 
 func GetDatagenConfig() (*DatagenConfig, error) {
@@ -24,6 +25,7 @@ func GetDatagenConfig() (*DatagenConfig, error) {
 	cfg.LogConfig.BindFlags()
 	flag.StringVar(&cfg.DatabaseUrl, "d", cfg.DatabaseUrl,
 		"The address of the postgres database")
+	flag.BoolVar(&cfg.IsCleanup, "clean", false, "cleanup mode to erase all test data")
 	flag.Parse()
 
 	if cfg.DatabaseUrl == "" {

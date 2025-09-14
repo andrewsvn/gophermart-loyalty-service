@@ -28,6 +28,8 @@ func main() {
 func run() error {
 	r := chi.NewRouter()
 	r.Get("/api/orders/{number}", getOrderHandler)
+
+	log.Println("starting fake accrual server on ", serverAddress)
 	return http.ListenAndServe(serverAddress, r)
 }
 
@@ -35,18 +37,15 @@ func getOrderHandler(w http.ResponseWriter, r *http.Request) {
 	orderID := chi.URLParam(r, "number")
 	firstDigit := orderID[0]
 
-	order := Order{
+	order := &Order{
 		OrderID: orderID,
 	}
 	switch firstDigit {
-	case '1':
-	case '6':
+	case '1', '6':
 		order.Status = "REGISTERED"
-	case '2':
-	case '7':
+	case '2', '7':
 		order.Status = "PROCESSING"
-	case '3':
-	case '8':
+	case '3', '8':
 		order.Status = "INVALID"
 	default:
 		order.Status = "PROCESSED"

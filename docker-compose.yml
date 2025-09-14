@@ -15,6 +15,7 @@ services:
     environment:
       RUN_ADDRESS: 0.0.0.0:8080
       ACCRUAL_SYSTEM_ADDRESS: ${ACCRUAL_SYSTEM_ADDRESS}
+      DB_HOST: pgdb
       DATABASE_URI: postgres://${DB_USER}:${DB_PASS}@pgdb:${DB_PORT:-5432}/${DB_NAME}?sslmode=disable
 
   pgdb:

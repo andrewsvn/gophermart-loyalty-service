@@ -75,7 +75,7 @@ func (r *UserRepository) CreateUser(ctx context.Context, login, authHash string)
 }
 
 func (r *UserRepository) UpdateUserLoginTs(ctx context.Context, userId uuid.UUID) (bool, error) {
-	return r.updateRow(ctx, func(ub squirrel.UpdateBuilder) squirrel.UpdateBuilder {
+	return r.updateRows(ctx, func(ub squirrel.UpdateBuilder) squirrel.UpdateBuilder {
 		return ub.
 			Set("LAST_LOGIN_TS", time.Now()).
 			Where(squirrel.Eq{"ID": userId})

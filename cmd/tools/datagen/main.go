@@ -87,6 +87,11 @@ func run() error {
 		return err
 	}
 
+	if cfg.IsCleanup {
+		logger.Info("cleanup mode - skipping data generation")
+		return tx.Commit(ctx)
+	}
+
 	logger.Info("generating users")
 	err = generateUsers(ctx, tx)
 	if err != nil {
