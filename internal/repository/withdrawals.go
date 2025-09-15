@@ -2,8 +2,8 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"time"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/andrewsvn/gophermart-ls/internal/db"
@@ -19,6 +19,11 @@ type WithdrawalRepository struct {
 const (
 	withdrawalTableName = "LS_WITHDRAWALS"
 	withdrawalColumns   = "ID, USER_ID, AMOUNT, CREATE_TS"
+)
+
+var (
+	ErrWithdrawalIdNotUnique = errors.New("WithdrawalId is not unique")
+	ErrInsufficientBalance   = errors.New("insufficient balance")
 )
 
 func NewWithdrawalRepository(db *db.PostgresDB) *WithdrawalRepository {
@@ -89,13 +94,59 @@ func (r *WithdrawalRepository) GetTotalWithdrawnByUserId(
 	return total, nil
 }
 
-func (r *WithdrawalRepository) CreateWithdrawal(
+func (r *WithdrawalRepository) TryCreateWithdrawal(
 	ctx context.Context,
 	wdId string,
 	userId uuid.UUID,
 	amount float64,
 ) error {
-	return r.insertRow(ctx, wdId, userId, amount, time.Now())
+	// check if withdrawal with given ID already exists
+	sqlQuery, args, err := r.sqrl.
+		Select("ID").
+		From(r.tableName).
+		Where(squirrel.Eq{"ID": wdId}).
+		ToSql()
+	if err != nil {
+		return fmt.Errorf("error building query: %w", err)
+	}
+
+	rows, err := r.db.Pool().Query(ctx, sqlQuery, args...)
+	if err != nil {
+		return fmt.Errorf("error querying rows from table %s: %w", r.tableName, err)
+	}
+
+	if rows.Next() {
+		return ErrWithdrawalIdNotUnique
+	}
+
+	// create withdrawal if balance is enough
+	sqlQuery = `
+WITH available AS (
+  SELECT USER_ID, SUM(VALUE) AS TOTAL
+  FROM (
+    SELECT USER_ID, ACCRUAL AS VALUE FROM LS_ORDERS WHERE USER_ID = $2
+  	UNION ALL
+    SELECT USER_ID, -AMOUNT AS VALUE FROM LS_WITHDRAWALS WHERE USER_ID = $2
+  )
+  GROUP BY USER_ID
+),
+possible AS (
+  SELECT USER_ID FROM available WHERE TOTAL >= $3
+)
+INSERT INTO LS_WITHDRAWALS (ID, USER_ID, AMOUNT)
+SELECT $1, USER_ID, $3 FROM possible
+RETURNING ID
+`
+	rows, err = r.db.Pool().Query(ctx, sqlQuery, wdId, userId, amount)
+	if err != nil {
+		return fmt.Errorf("error executing withdrawal query: %w", err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return ErrInsufficientBalance
+	}
+	return nil
 }
 
 func (r *WithdrawalRepository) fromRow(rows pgx.Rows) (*model.Withdrawal, error) {

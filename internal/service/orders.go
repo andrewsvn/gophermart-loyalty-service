@@ -25,7 +25,7 @@ var (
 	ErrInvalidOrderID          = errors.New("order ID has incorrect format")
 	ErrOrderExistsForSameUser  = errors.New("order already exists for the same user")
 	ErrOrderExistsForOtherUser = errors.New("order already exists for another user")
-	ErrNotEnoughFunds          = errors.New("not enough loyalty points available")
+	ErrNotEnoughBalance        = errors.New("not enough loyalty points available")
 )
 
 func NewOrderService(
@@ -75,16 +75,14 @@ func (s *OrderService) RegisterWithdrawal(ctx context.Context, userID uuid.UUID,
 		return ErrInvalidOrderID
 	}
 
-	balance, err := s.GetUserBalance(ctx, userID)
+	err := s.withdrawalRepo.TryCreateWithdrawal(ctx, wdOrder.OrderID, userID, wdOrder.Sum)
 	if err != nil {
-		return fmt.Errorf("error checking user balance: %w", err)
+		if errors.Is(err, repository.ErrInsufficientBalance) {
+			return ErrNotEnoughBalance
+		}
+		return fmt.Errorf("error creating withdrawal: %w", err)
 	}
-
-	if wdOrder.Sum > balance.Current {
-		return ErrNotEnoughFunds
-	}
-
-	return s.withdrawalRepo.CreateWithdrawal(ctx, wdOrder.OrderID, userID, wdOrder.Sum)
+	return nil
 }
 
 func (s *OrderService) GetWithdrawalsList(ctx context.Context, userID uuid.UUID) ([]*model.Withdrawal, error) {

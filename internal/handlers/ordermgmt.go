@@ -190,7 +190,7 @@ func (h *OrderManagementHandlers) withdrawHandler() http.HandlerFunc {
 				http.Error(rw, err.Error(), http.StatusUnprocessableEntity)
 				return
 			}
-			if errors.Is(err, service.ErrNotEnoughFunds) {
+			if errors.Is(err, service.ErrNotEnoughBalance) {
 				http.Error(rw, err.Error(), http.StatusPaymentRequired)
 				return
 			}
