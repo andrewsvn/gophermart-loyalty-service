@@ -58,15 +58,13 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*model.
 
 func (r *UserRepository) CreateUser(ctx context.Context, login, authHash string) (*uuid.UUID, error) {
 	newID := uuid.New()
-	err := r.insertRow(ctx, func(ib squirrel.InsertBuilder) squirrel.InsertBuilder {
-		return ib.Values(
-			newID.String(),
-			login,
-			authHash,
-			time.Now(),
-			nil,
-		)
-	})
+	err := r.insertRow(ctx,
+		newID.String(),
+		login,
+		authHash,
+		time.Now(),
+		nil,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("error inserting row into table %s: %w", r.tableName, err)
 	}
