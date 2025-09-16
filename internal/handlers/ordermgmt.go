@@ -60,7 +60,7 @@ func (h *OrderManagementHandlers) SetHandlersLogger(logger *zap.SugaredLogger) {
 
 func (h *OrderManagementHandlers) newOrderHandler() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		ctx, userId, ok := h.getContextAndUserId(r)
+		ctx, userID, ok := h.getContextAndUserID(r)
 		if !ok {
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
@@ -79,8 +79,8 @@ func (h *OrderManagementHandlers) newOrderHandler() http.HandlerFunc {
 			return
 		}
 
-		h.logger.Debugw("registering new order", "userId", userId, "orderId", orderID)
-		err = h.orderService.RegisterOrder(ctx, userId, orderID)
+		h.logger.Debugw("registering new order", "userID", userID, "orderID", orderID)
+		err = h.orderService.RegisterOrder(ctx, userID, orderID)
 		if err != nil {
 			if errors.Is(err, service.ErrInvalidOrderID) {
 				http.Error(rw, err.Error(), http.StatusUnprocessableEntity)
@@ -99,9 +99,9 @@ func (h *OrderManagementHandlers) newOrderHandler() http.HandlerFunc {
 			return
 		}
 
-		h.logger.Debugw("order registered", "userId", userId, "orderId", orderID)
+		h.logger.Debugw("order registered", "userID", userID, "orderID", orderID)
 		rw.WriteHeader(http.StatusCreated)
-		_, err = rw.Write([]byte("Order created"))
+		_, err = rw.Write([]byte("order created"))
 		if err != nil {
 			h.logger.Errorw("failed to write response", "error", err)
 		}
@@ -110,13 +110,13 @@ func (h *OrderManagementHandlers) newOrderHandler() http.HandlerFunc {
 
 func (h *OrderManagementHandlers) getOrdersHandler() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		ctx, userId, ok := h.getContextAndUserId(r)
+		ctx, userID, ok := h.getContextAndUserID(r)
 		if !ok {
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 
-		orders, err := h.orderService.GetOrdersList(ctx, userId)
+		orders, err := h.orderService.GetOrdersList(ctx, userID)
 		if err != nil {
 			h.logger.Errorw("error getting orders list", "error", err)
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -133,19 +133,19 @@ func (h *OrderManagementHandlers) getOrdersHandler() http.HandlerFunc {
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		h.writeJsonPayload(rw, http.StatusOK, payload)
+		h.writeJSONPayload(rw, http.StatusOK, payload)
 	}
 }
 
 func (h *OrderManagementHandlers) getBalanceHandler() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		ctx, userId, ok := h.getContextAndUserId(r)
+		ctx, userID, ok := h.getContextAndUserID(r)
 		if !ok {
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 
-		balance, err := h.orderService.GetUserBalance(ctx, userId)
+		balance, err := h.orderService.GetUserBalance(ctx, userID)
 		if err != nil {
 			h.logger.Errorw("error getting user balance", "error", err)
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -158,13 +158,13 @@ func (h *OrderManagementHandlers) getBalanceHandler() http.HandlerFunc {
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		h.writeJsonPayload(rw, http.StatusOK, payload)
+		h.writeJSONPayload(rw, http.StatusOK, payload)
 	}
 }
 
 func (h *OrderManagementHandlers) withdrawHandler() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		ctx, userId, ok := h.getContextAndUserId(r)
+		ctx, userID, ok := h.getContextAndUserID(r)
 		if !ok {
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
@@ -184,7 +184,7 @@ func (h *OrderManagementHandlers) withdrawHandler() http.HandlerFunc {
 			http.Error(rw, "sum must be a positive numeric value", http.StatusBadRequest)
 		}
 
-		err = h.orderService.RegisterWithdrawal(ctx, userId, wdOrder)
+		err = h.orderService.RegisterWithdrawal(ctx, userID, wdOrder)
 		if err != nil {
 			if errors.Is(err, service.ErrInvalidOrderID) {
 				http.Error(rw, err.Error(), http.StatusUnprocessableEntity)
@@ -209,13 +209,13 @@ func (h *OrderManagementHandlers) withdrawHandler() http.HandlerFunc {
 
 func (h *OrderManagementHandlers) getWithdrawalsHandler() http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		ctx, userId, ok := h.getContextAndUserId(r)
+		ctx, userID, ok := h.getContextAndUserID(r)
 		if !ok {
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 
-		withdraws, err := h.orderService.GetWithdrawalsList(ctx, userId)
+		withdraws, err := h.orderService.GetWithdrawalsList(ctx, userID)
 		if err != nil {
 			h.logger.Errorw("error getting withdrawals list", "error", err)
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -228,21 +228,21 @@ func (h *OrderManagementHandlers) getWithdrawalsHandler() http.HandlerFunc {
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
-		h.writeJsonPayload(rw, http.StatusOK, payload)
+		h.writeJSONPayload(rw, http.StatusOK, payload)
 	}
 }
 
-func (h *OrderManagementHandlers) getContextAndUserId(r *http.Request) (context.Context, uuid.UUID, bool) {
+func (h *OrderManagementHandlers) getContextAndUserID(r *http.Request) (context.Context, uuid.UUID, bool) {
 	ctx := r.Context()
-	userId, ok := ctx.Value(middleware.AuthorizedUserIDVar).(uuid.UUID)
+	userID, ok := ctx.Value(middleware.AuthorizedUserIDVar).(uuid.UUID)
 	if !ok {
-		h.logger.Errorw("failed to get authenticated user id")
+		h.logger.Errorw("failed to get authenticated user ID")
 		return ctx, uuid.Nil, false
 	}
-	return ctx, userId, true
+	return ctx, userID, true
 }
 
-func (h *OrderManagementHandlers) writeJsonPayload(rw http.ResponseWriter, httpCode int, payload []byte) {
+func (h *OrderManagementHandlers) writeJSONPayload(rw http.ResponseWriter, httpCode int, payload []byte) {
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(httpCode)
 	_, err := rw.Write(payload)

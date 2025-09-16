@@ -73,7 +73,7 @@ func (s *UserService) LoginUser(ctx context.Context, login, password string) (*m
 	if err != nil {
 		return nil, fmt.Errorf("unable to generate access token: %w", err)
 	}
-	_, err = s.repo.UpdateUserLoginTs(ctx, user.ID)
+	_, err = s.repo.UpdateUserLoginTS(ctx, user.ID)
 	if err != nil {
 		s.logger.Warnw("unable to update user login", "error", err)
 	}

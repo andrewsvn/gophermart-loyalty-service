@@ -57,10 +57,10 @@ func (r *UserRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*model.
 }
 
 func (r *UserRepository) CreateUser(ctx context.Context, login, authHash string) (*uuid.UUID, error) {
-	newId := uuid.New()
+	newID := uuid.New()
 	err := r.insertRow(ctx, func(ib squirrel.InsertBuilder) squirrel.InsertBuilder {
 		return ib.Values(
-			newId.String(),
+			newID.String(),
 			login,
 			authHash,
 			time.Now(),
@@ -71,14 +71,14 @@ func (r *UserRepository) CreateUser(ctx context.Context, login, authHash string)
 		return nil, fmt.Errorf("error inserting row into table %s: %w", r.tableName, err)
 	}
 
-	return &newId, nil
+	return &newID, nil
 }
 
-func (r *UserRepository) UpdateUserLoginTs(ctx context.Context, userId uuid.UUID) (bool, error) {
+func (r *UserRepository) UpdateUserLoginTS(ctx context.Context, userID uuid.UUID) (bool, error) {
 	return r.updateRows(ctx, func(ub squirrel.UpdateBuilder) squirrel.UpdateBuilder {
 		return ub.
 			Set("LAST_LOGIN_TS", time.Now()).
-			Where(squirrel.Eq{"ID": userId})
+			Where(squirrel.Eq{"ID": userID})
 	})
 }
 

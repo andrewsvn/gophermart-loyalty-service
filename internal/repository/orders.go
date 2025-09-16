@@ -32,9 +32,9 @@ func NewOrderRepository(db *db.PostgresDB) *OrderRepository {
 	}
 }
 
-func (r *OrderRepository) GetOrderByID(ctx context.Context, orderId string) (*model.Order, error) {
+func (r *OrderRepository) GetOrderByID(ctx context.Context, orderID string) (*model.Order, error) {
 	rows, err := r.queryRows(ctx, func(sb squirrel.SelectBuilder) squirrel.SelectBuilder {
-		return sb.Where(squirrel.Eq{"ID": orderId})
+		return sb.Where(squirrel.Eq{"ID": orderID})
 	})
 	if err != nil {
 		return nil, err
@@ -44,9 +44,9 @@ func (r *OrderRepository) GetOrderByID(ctx context.Context, orderId string) (*mo
 	return r.fromRow(rows)
 }
 
-func (r *OrderRepository) GetOrdersByUserId(ctx context.Context, userId uuid.UUID) ([]*model.Order, error) {
+func (r *OrderRepository) GetOrdersByUserID(ctx context.Context, userID uuid.UUID) ([]*model.Order, error) {
 	rows, err := r.queryRows(ctx, func(sb squirrel.SelectBuilder) squirrel.SelectBuilder {
-		return sb.Where(squirrel.Eq{"USER_ID": userId}).OrderBy("ID ASC")
+		return sb.Where(squirrel.Eq{"USER_ID": userID}).OrderBy("ID ASC")
 	})
 	if err != nil {
 		return nil, err
@@ -56,11 +56,11 @@ func (r *OrderRepository) GetOrdersByUserId(ctx context.Context, userId uuid.UUI
 	return r.fromRows(rows)
 }
 
-func (r *OrderRepository) GetTotalAccrualByUserId(ctx context.Context, userId uuid.UUID) (float64, error) {
+func (r *OrderRepository) GetTotalAccrualByUserID(ctx context.Context, userID uuid.UUID) (float64, error) {
 	sqlQuery, args, err := r.sqrl.
 		Select("COALESCE(SUM(ACCRUAL), 0)").
 		From(r.tableName).
-		Where(squirrel.Eq{"USER_ID": userId}).
+		Where(squirrel.Eq{"USER_ID": userID}).
 		ToSql()
 	if err != nil {
 		return 0, fmt.Errorf("%w: %v", ErrInvalidQuery, err)
@@ -83,11 +83,11 @@ func (r *OrderRepository) GetTotalAccrualByUserId(ctx context.Context, userId uu
 	return total, nil
 }
 
-func (r *OrderRepository) CreateNewOrder(ctx context.Context, orderId string, userId uuid.UUID) error {
+func (r *OrderRepository) CreateNewOrder(ctx context.Context, orderID string, userID uuid.UUID) error {
 	ts := time.Now()
 	return r.insertRow(ctx,
-		orderId,
-		userId,
+		orderID,
+		userID,
 		model.OrderStatusNew,
 		0.0,
 		ts,
@@ -118,7 +118,7 @@ func (r *OrderRepository) UpdateOrderAccrual(
 }
 
 func (r *OrderRepository) FetchOrderIDsForUpdate(ctx context.Context, limit uint64) ([]string, error) {
-	filterSql, _, err := r.sqrl.
+	filterQuery, _, err := r.sqrl.
 		Select("ID").
 		From(r.tableName).
 		Where(squirrel.Expr("(STATUS = 'NEW' OR STATUS = 'PROCESSING') AND PENDING <> true")).
@@ -132,7 +132,7 @@ func (r *OrderRepository) FetchOrderIDsForUpdate(ctx context.Context, limit uint
 	sqlQuery, args, err := r.sqrl.
 		Update(r.tableName).
 		Set("PENDING", true).
-		Where(squirrel.Expr("ID IN (" + filterSql + ")")).
+		Where(squirrel.Expr("ID IN (" + filterQuery + ")")).
 		Suffix("RETURNING ID").
 		ToSql()
 	if err != nil {

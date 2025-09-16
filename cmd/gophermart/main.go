@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 
 	"github.com/andrewsvn/gophermart-ls/internal/auth"
 	"github.com/andrewsvn/gophermart-ls/internal/config"
@@ -35,13 +36,12 @@ func run() error {
 	}
 
 	logger.Info("starting gophermart-loyalty-service",
-		zap.String("service URL", cfg.Url),
-		zap.String("postgres DB URL", cfg.DatabaseUrl),
-		zap.String("loyalty accrual service URL", cfg.AccrualServiceUrl),
+		zap.String("service URL", cfg.URL),
+		zap.String("loyalty accrual service URL", cfg.AccrualServiceURL),
 	)
 
 	logger.Info("migrating database schema")
-	err = db.Migrate(cfg.DatabaseUrl, logger)
+	err = db.Migrate(cfg.DatabaseURL, logger)
 	if err != nil {
 		return err
 	}
@@ -50,7 +50,7 @@ func run() error {
 	defer done()
 
 	logger.Info("initializing storage")
-	pgdb, err := db.NewPostgresDB(ctx, cfg.DatabaseUrl)
+	pgdb, err := db.NewPostgresDB(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err
 	}
@@ -79,7 +79,7 @@ func run() error {
 	)
 
 	logger.Info("initializing accrual system integration")
-	accrualInt := integration.NewAccrualPollingQueue(orderRepo, cfg.AccrualServiceUrl, logger)
+	accrualInt := integration.NewAccrualPollingQueue(orderRepo, cfg.AccrualServiceURL, logger)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
@@ -91,7 +91,18 @@ func run() error {
 	<-stop
 	logger.Info("shutting down application routines")
 
-	accrualInt.Shutdown()
-	server.GracefulShutdown()
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		defer logging.Sync(logger)
+		server.GracefulShutdown()
+	}()
+	go func() {
+		defer wg.Done()
+		defer logging.Sync(logger)
+		accrualInt.Shutdown()
+	}()
+	wg.Wait()
 	return nil
 }

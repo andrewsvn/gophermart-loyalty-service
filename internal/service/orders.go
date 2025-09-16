@@ -23,6 +23,7 @@ type OrderService struct {
 
 var (
 	ErrInvalidOrderID          = errors.New("order ID has incorrect format")
+	ErrWithdrawalAlreadyExists = errors.New("withdrawal already exists")
 	ErrOrderExistsForSameUser  = errors.New("order already exists for the same user")
 	ErrOrderExistsForOtherUser = errors.New("order already exists for another user")
 	ErrNotEnoughBalance        = errors.New("not enough loyalty points available")
@@ -52,7 +53,7 @@ func (s *OrderService) RegisterOrder(ctx context.Context, userID uuid.UUID, orde
 		return fmt.Errorf("error getting existing order: %w", err)
 	}
 	if existingOrder != nil {
-		if strings.ToLower(existingOrder.UserID) == strings.ToLower(userID.String()) {
+		if strings.EqualFold(existingOrder.UserID, userID.String()) {
 			return ErrOrderExistsForSameUser
 		} else {
 			return ErrOrderExistsForOtherUser
@@ -63,7 +64,7 @@ func (s *OrderService) RegisterOrder(ctx context.Context, userID uuid.UUID, orde
 }
 
 func (s *OrderService) GetOrdersList(ctx context.Context, userID uuid.UUID) ([]*model.Order, error) {
-	orders, err := s.orderRepo.GetOrdersByUserId(ctx, userID)
+	orders, err := s.orderRepo.GetOrdersByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read orders data: %w", err)
 	}
@@ -81,7 +82,7 @@ func (s *OrderService) RegisterWithdrawal(ctx context.Context, userID uuid.UUID,
 			return ErrNotEnoughBalance
 		}
 		if errors.Is(err, repository.ErrDuplicateEntity) {
-			return ErrOrderExistsForSameUser
+			return ErrWithdrawalAlreadyExists
 		}
 		return fmt.Errorf("error creating withdrawal: %w", err)
 	}
@@ -97,11 +98,11 @@ func (s *OrderService) GetWithdrawalsList(ctx context.Context, userID uuid.UUID)
 }
 
 func (s *OrderService) GetUserBalance(ctx context.Context, userID uuid.UUID) (*model.Balance, error) {
-	accrued, err := s.orderRepo.GetTotalAccrualByUserId(ctx, userID)
+	accrued, err := s.orderRepo.GetTotalAccrualByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read orders data: %w", err)
 	}
-	withdrawn, err := s.withdrawalRepo.GetTotalWithdrawnByUserId(ctx, userID)
+	withdrawn, err := s.withdrawalRepo.GetTotalWithdrawnByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read withdrawals data: %w", err)
 	}

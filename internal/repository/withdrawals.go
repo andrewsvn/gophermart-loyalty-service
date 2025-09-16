@@ -36,9 +36,9 @@ func NewWithdrawalRepository(db *db.PostgresDB) *WithdrawalRepository {
 	}
 }
 
-func (r *WithdrawalRepository) GetWithdrawalByID(ctx context.Context, wdId string) (*model.Withdrawal, error) {
+func (r *WithdrawalRepository) GetWithdrawalByID(ctx context.Context, wdID string) (*model.Withdrawal, error) {
 	rows, err := r.queryRows(ctx, func(sb squirrel.SelectBuilder) squirrel.SelectBuilder {
-		return sb.Where(squirrel.Eq{"ID": wdId})
+		return sb.Where(squirrel.Eq{"ID": wdID})
 	})
 	if err != nil {
 		return nil, err
@@ -63,7 +63,7 @@ func (r *WithdrawalRepository) GetWithdrawalsByUserID(
 	return r.fromRows(rows)
 }
 
-func (r *WithdrawalRepository) GetTotalWithdrawnByUserId(
+func (r *WithdrawalRepository) GetTotalWithdrawnByUserID(
 	ctx context.Context,
 	userID uuid.UUID,
 ) (float64, error) {
@@ -95,15 +95,15 @@ func (r *WithdrawalRepository) GetTotalWithdrawnByUserId(
 
 func (r *WithdrawalRepository) TryCreateWithdrawal(
 	ctx context.Context,
-	wdId string,
-	userId uuid.UUID,
+	wdID string,
+	userID uuid.UUID,
 	amount float64,
 ) error {
 	// check if withdrawal with given ID already exists
 	sqlQuery, args, err := r.sqrl.
 		Select("ID").
 		From(r.tableName).
-		Where(squirrel.Eq{"ID": wdId}).
+		Where(squirrel.Eq{"ID": wdID}).
 		ToSql()
 	if err != nil {
 		return fmt.Errorf("error building query: %w", err)
@@ -113,10 +113,13 @@ func (r *WithdrawalRepository) TryCreateWithdrawal(
 	if err != nil {
 		return fmt.Errorf("error querying rows from table %s: %w", r.tableName, err)
 	}
+	defer rows.Close()
 
 	if rows.Next() {
 		return ErrDuplicateEntity
 	}
+
+	// TODO: if aggregated balance is stored as single value for user, this can be simplified
 
 	// create withdrawal if balance is enough
 	sqlQuery = `
@@ -136,7 +139,7 @@ INSERT INTO LS_WITHDRAWALS (ID, USER_ID, AMOUNT)
 SELECT $1, USER_ID, $3 FROM possible
 RETURNING ID
 `
-	rows, err = r.db.Pool().Query(ctx, sqlQuery, wdId, userId, amount)
+	rows, err = r.db.Pool().Query(ctx, sqlQuery, wdID, userID, amount)
 	if err != nil {
 		return fmt.Errorf("error executing withdrawal query: %w", err)
 	}

@@ -74,7 +74,7 @@ func newFailurePollingResult(orderID string, oc outcome) *accrualPollingResult {
 
 type AccrualPollingQueue struct {
 	ordersRepo *repository.OrderRepository
-	serviceUrl string
+	serviceURL string
 	logger     *zap.SugaredLogger
 
 	// orderIDs is a list of orderID values fetched from repository to update from accrual system
@@ -94,10 +94,10 @@ type AccrualPollingQueue struct {
 	prodWG     *sync.WaitGroup
 	consWG     *sync.WaitGroup
 
-	// WaitUntilTs must be checked by all pollFunc routines to skip accrual polling loops
+	// WaitUntilTS must be checked by all pollFunc routines to skip accrual polling loops
 	// in case this value is not reached
 	// it is updated when any routine receives the response containing 'Retry-After' header
-	WaitUntilTs atomic.Pointer[time.Time]
+	WaitUntilTS atomic.Pointer[time.Time]
 }
 
 func NewAccrualPollingQueue(
@@ -107,7 +107,7 @@ func NewAccrualPollingQueue(
 ) *AccrualPollingQueue {
 	queue := &AccrualPollingQueue{
 		ordersRepo: or,
-		serviceUrl: url,
+		serviceURL: url,
 		logger:     logging.ComponentLogger(l, "accrual-polling"),
 	}
 
@@ -209,8 +209,8 @@ func (pq *AccrualPollingQueue) pollFunc(ctx context.Context, id int) {
 		default:
 		}
 
-		waitUntilTs := pq.WaitUntilTs.Load()
-		if waitUntilTs != nil && time.Now().Before(*waitUntilTs) {
+		waitUntilTS := pq.WaitUntilTS.Load()
+		if waitUntilTS != nil && time.Now().Before(*waitUntilTS) {
 			pq.logger.Debugw("polling is suspended, waiting", "id", id)
 			time.Sleep(accrualWorkerSleepInterval)
 			continue
@@ -249,10 +249,10 @@ func (pq *AccrualPollingQueue) accrualResultProcessing(ctx context.Context) {
 				"orderID", result.OrderID,
 				"retryAfter", result.RetryAfterSec)
 
-			waitUntilTs := time.Now().Add(time.Duration(result.RetryAfterSec) * time.Second)
-			prevWaitTs := pq.WaitUntilTs.Load()
-			if prevWaitTs.Before(waitUntilTs) {
-				pq.WaitUntilTs.Store(&waitUntilTs)
+			waitUntilTS := time.Now().Add(time.Duration(result.RetryAfterSec) * time.Second)
+			prevWaitTS := pq.WaitUntilTS.Load()
+			if prevWaitTS.Before(waitUntilTS) {
+				pq.WaitUntilTS.Store(&waitUntilTS)
 			}
 			pq.appendOrderIDs(result.OrderID)
 		default:
@@ -280,7 +280,7 @@ func (pq *AccrualPollingQueue) updateAccrual(
 	client *resty.Client,
 	orderID string,
 ) *accrualPollingResult {
-	url := fmt.Sprintf("%s/api/orders/%s", pq.serviceUrl, orderID)
+	url := fmt.Sprintf("%s/api/orders/%s", pq.serviceURL, orderID)
 	pq.logger.Debugw("sending accrual request", "url", url)
 
 	resp, err := client.R().Get(url)

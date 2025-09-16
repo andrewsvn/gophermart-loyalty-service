@@ -31,3 +31,7 @@ func NewZapLogger(config config.LogConfig) (*zap.Logger, error) {
 func ComponentLogger(l *zap.Logger, name string) *zap.SugaredLogger {
 	return l.Sugar().With("component", name)
 }
+
+func Sync(l *zap.Logger) {
+	_ = l.Sync()
+}

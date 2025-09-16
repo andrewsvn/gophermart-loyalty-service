@@ -3,7 +3,7 @@ package model
 import "encoding/json"
 
 type OrderAccrual struct {
-	OrderID string      `json:"order,required"`
+	OrderID string      `json:"order"`
 	Status  OrderStatus `json:"-"`
 	Accrual float64     `json:"accrual"`
 }
@@ -12,7 +12,7 @@ func (oa *OrderAccrual) UnmarshalJSON(data []byte) error {
 	type Alias OrderAccrual
 	aux := &struct {
 		*Alias
-		St string `json:"status,required"`
+		St string `json:"status"`
 	}{
 		Alias: (*Alias)(oa),
 	}

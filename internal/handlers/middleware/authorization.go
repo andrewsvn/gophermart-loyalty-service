@@ -11,11 +11,13 @@ import (
 	"go.uber.org/zap"
 )
 
+type AuthVariableKey string
+
 const (
 	authorizationHeaderName = "Authorization"
 	authorizationType       = "Bearer"
 
-	AuthorizedUserIDVar = "userID"
+	AuthorizedUserIDVar AuthVariableKey = "userID"
 )
 
 type Authorization struct {

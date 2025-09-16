@@ -51,14 +51,14 @@ func run() error {
 	}
 
 	logger.Info("migrating database schema")
-	err = db.Migrate(cfg.DatabaseUrl, logger)
+	err = db.Migrate(cfg.DatabaseURL, logger)
 	if err != nil {
 		return err
 	}
 
 	ctx := context.Background()
 	logger.Info("initializing storage")
-	pgdb, err := db.NewPostgresDB(ctx, cfg.DatabaseUrl)
+	pgdb, err := db.NewPostgresDB(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err
 	}
@@ -182,10 +182,10 @@ func generateWithdrawals(ctx context.Context, tx pgx.Tx) error {
 	for i := 0; i < nWithdrawals; i++ {
 		userRoll := rnd.Intn(nUsers)
 
-		wdId := utils.GenerateLuhnNumber(rnd)
+		wdID := utils.GenerateLuhnNumber(rnd)
 		userID := userIDs[userRoll]
 		amount := rnd.Int63n(maxWithdrawal)
-		ib = ib.Values(wdId, userID, amount, time.Now())
+		ib = ib.Values(wdID, userID, amount, time.Now())
 	}
 	sql, args, err := ib.ToSql()
 	if err != nil {

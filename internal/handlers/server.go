@@ -44,7 +44,7 @@ func NewRestServer(cfg *config.ServerConfig, l *zap.Logger, providers ...RoutePr
 
 	return &RestServer{
 		httpSrv: &http.Server{
-			Addr:    strings.Trim(cfg.Url, "\""),
+			Addr:    strings.Trim(cfg.URL, "\""),
 			Handler: r,
 		},
 		logger: logger,
@@ -70,5 +70,5 @@ func (rs *RestServer) GracefulShutdown() {
 		rs.logger.Error("failed to shutdown http server", zap.Error(err))
 		return
 	}
-	rs.logger.Info("http server shutdown complete")
+	rs.logger.Info("http server shut down successfully")
 }

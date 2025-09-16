@@ -16,9 +16,9 @@ type ServerConfig struct {
 	LogConfig
 	AuthConfig
 
-	Url               string `env:"RUN_ADDRESS" envDefault:"localhost:8080"`
-	AccrualServiceUrl string `env:"ACCRUAL_SYSTEM_ADDRESS"`
-	DatabaseUrl       string `env:"DATABASE_URI"`
+	URL               string `env:"RUN_ADDRESS" envDefault:"localhost:8080"`
+	AccrualServiceURL string `env:"ACCRUAL_SYSTEM_ADDRESS"`
+	DatabaseURL       string `env:"DATABASE_URI"`
 }
 
 func GetServerConfig() (*ServerConfig, error) {
@@ -42,22 +42,22 @@ func (cfg *ServerConfig) BindFlags() {
 	cfg.LogConfig.BindFlags()
 	cfg.AuthConfig.BindFlags()
 
-	flag.StringVar(&cfg.Url, "a", cfg.Url,
+	flag.StringVar(&cfg.URL, "a", cfg.URL,
 		"The address to run the service on")
-	flag.StringVar(&cfg.AccrualServiceUrl, "r", cfg.AccrualServiceUrl,
+	flag.StringVar(&cfg.AccrualServiceURL, "r", cfg.AccrualServiceURL,
 		"The address of the accrual service")
-	flag.StringVar(&cfg.DatabaseUrl, "d", cfg.DatabaseUrl,
+	flag.StringVar(&cfg.DatabaseURL, "d", cfg.DatabaseURL,
 		"The address of the postgres database")
 }
 
 func (cfg *ServerConfig) Validate() error {
-	if cfg.Url == "" {
+	if cfg.URL == "" {
 		return fmt.Errorf("url is required")
 	}
-	if cfg.AccrualServiceUrl == "" {
+	if cfg.AccrualServiceURL == "" {
 		return fmt.Errorf("accrual service url is required")
 	}
-	if cfg.DatabaseUrl == "" {
+	if cfg.DatabaseURL == "" {
 		return fmt.Errorf("databaseUrl is required")
 	}
 	return nil

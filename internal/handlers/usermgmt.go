@@ -17,8 +17,8 @@ type UserManagementHandlers struct {
 }
 
 type UserLoginData struct {
-	Login    string `json:"login,required"`
-	Password string `json:"password,required"`
+	Login    string `json:"login"`
+	Password string `json:"password"`
 }
 
 func NewUserManagementHandlers(us *service.UserService) *UserManagementHandlers {
