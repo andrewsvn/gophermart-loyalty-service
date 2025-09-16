@@ -100,8 +100,8 @@ func (h *OrderManagementHandlers) newOrderHandler() http.HandlerFunc {
 		}
 
 		h.logger.Debugw("order registered", "userID", userID, "orderID", orderID)
-		rw.WriteHeader(http.StatusCreated)
-		_, err = rw.Write([]byte("order created"))
+		rw.WriteHeader(http.StatusAccepted)
+		_, err = rw.Write([]byte("order accepted into processing"))
 		if err != nil {
 			h.logger.Errorw("failed to write response", "error", err)
 		}

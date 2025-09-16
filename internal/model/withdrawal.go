@@ -5,6 +5,6 @@ import "time"
 type Withdrawal struct {
 	ID          string    `json:"order"`
 	UserID      string    `json:"-"`
-	Sum         int       `json:"sum"`
+	Sum         float64   `json:"sum"`
 	ProcessedAt time.Time `json:"processedAt"`
 }
