@@ -32,19 +32,33 @@ func NewAuthorization(idp *auth.IdentityProvider, l *zap.Logger) *Authorization 
 
 func (a *Authorization) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var accessToken string
+
+		// header token has more priority than cookies
 		authHeader := r.Header.Get(authorizationHeaderName)
-		if authHeader == "" {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+		if authHeader != "" {
+			parts := strings.Split(authHeader, " ")
+			if len(parts) != 2 || parts[0] != authorizationType {
+				http.Error(w, "invalid authorization header format", http.StatusUnauthorized)
+				return
+			}
+			accessToken = parts[1]
+		} else {
+			// check cookies for a token
+			cookies := r.Cookies()
+			for _, cookie := range cookies {
+				if cookie.Name == "access_token" {
+					accessToken = cookie.Value
+				}
+			}
+		}
+
+		if accessToken == "" {
+			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
 		}
 
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != authorizationType {
-			http.Error(w, "invalid authorization header format", http.StatusUnauthorized)
-			return
-		}
-
-		userID, err := a.idp.AuthorizeUser(r.Context(), parts[1])
+		userID, err := a.idp.AuthorizeUser(r.Context(), accessToken)
 		if err != nil {
 			if errors.Is(err, auth.ErrInvalidToken) {
 				http.Error(w, err.Error(), http.StatusUnauthorized)

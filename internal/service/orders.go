@@ -80,6 +80,9 @@ func (s *OrderService) RegisterWithdrawal(ctx context.Context, userID uuid.UUID,
 		if errors.Is(err, repository.ErrInsufficientBalance) {
 			return ErrNotEnoughBalance
 		}
+		if errors.Is(err, repository.ErrDuplicateEntity) {
+			return ErrOrderExistsForSameUser
+		}
 		return fmt.Errorf("error creating withdrawal: %w", err)
 	}
 	return nil

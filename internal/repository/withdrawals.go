@@ -22,8 +22,7 @@ const (
 )
 
 var (
-	ErrWithdrawalIdNotUnique = errors.New("WithdrawalId is not unique")
-	ErrInsufficientBalance   = errors.New("insufficient balance")
+	ErrInsufficientBalance = errors.New("insufficient balance")
 )
 
 func NewWithdrawalRepository(db *db.PostgresDB) *WithdrawalRepository {
@@ -116,7 +115,7 @@ func (r *WithdrawalRepository) TryCreateWithdrawal(
 	}
 
 	if rows.Next() {
-		return ErrWithdrawalIdNotUnique
+		return ErrDuplicateEntity
 	}
 
 	// create withdrawal if balance is enough

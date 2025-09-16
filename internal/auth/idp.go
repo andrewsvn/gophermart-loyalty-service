@@ -8,9 +8,11 @@ import (
 	"time"
 
 	"github.com/andrewsvn/gophermart-ls/internal/config"
+	"github.com/andrewsvn/gophermart-ls/internal/logging"
 	"github.com/andrewsvn/gophermart-ls/internal/repository"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type IdentityClaims struct {
@@ -24,22 +26,39 @@ type IdentityProvider struct {
 	cfg       *config.AuthConfig
 	userRepo  *repository.UserRepository
 	secretKey []byte
+
+	logger *zap.SugaredLogger
 }
 
 var (
 	ErrInvalidToken = errors.New("invalid token")
 )
 
-func NewIdentityProvider(cfg *config.AuthConfig, ur *repository.UserRepository) (*IdentityProvider, error) {
-	secretKey, err := base64.StdEncoding.DecodeString(cfg.IdpKeyBase64)
-	if err != nil {
-		return nil, fmt.Errorf("server secret key can't be decoded: %v", err)
+func NewIdentityProvider(
+	cfg *config.AuthConfig,
+	ur *repository.UserRepository,
+	l *zap.Logger,
+) (*IdentityProvider, error) {
+	logger := logging.ComponentLogger(l, "identity-provider")
+
+	var secretKey []byte
+	var err error
+
+	if cfg.IdpKeyBase64 != "" {
+		secretKey, err = base64.StdEncoding.DecodeString(cfg.IdpKeyBase64)
+		if err != nil {
+			return nil, fmt.Errorf("server secret key can't be decoded: %v", err)
+		}
+	} else {
+		logger.Warn("IDP secret key is not configured, falling back to default one (insecure)")
+		secretKey = []byte("gopherMarKET")
 	}
 
 	return &IdentityProvider{
 		cfg:       cfg,
 		userRepo:  ur,
 		secretKey: secretKey,
+		logger:    logger,
 	}, nil
 }
 
@@ -55,6 +74,8 @@ func (idp *IdentityProvider) GenerateAccessToken(userID uuid.UUID, authHash stri
 	if err != nil {
 		return "", err
 	}
+
+	idp.logger.Debugw("generated new access token for user", "userID", userID)
 	return signedToken, nil
 }
 

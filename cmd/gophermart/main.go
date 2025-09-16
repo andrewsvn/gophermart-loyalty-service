@@ -61,7 +61,7 @@ func run() error {
 	withdrawalRepo := repository.NewWithdrawalRepository(pgdb)
 
 	logger.Info("initializing identity provider")
-	idp, err := auth.NewIdentityProvider(&cfg.AuthConfig, userRepo)
+	idp, err := auth.NewIdentityProvider(&cfg.AuthConfig, userRepo, logger)
 	if err != nil {
 		return err
 	}

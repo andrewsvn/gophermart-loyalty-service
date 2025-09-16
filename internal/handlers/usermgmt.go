@@ -103,6 +103,15 @@ func (h *UserManagementHandlers) authorize(
 		return
 	}
 
+	authCookie := &http.Cookie{
+		Name:     "access_token",
+		Value:    authResult.AccessToken,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	}
+	http.SetCookie(rw, authCookie)
+
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusOK)
 	err = json.NewEncoder(rw).Encode(authResult)

@@ -194,6 +194,10 @@ func (h *OrderManagementHandlers) withdrawHandler() http.HandlerFunc {
 				http.Error(rw, err.Error(), http.StatusPaymentRequired)
 				return
 			}
+			if errors.Is(err, service.ErrOrderExistsForSameUser) {
+				http.Error(rw, err.Error(), http.StatusConflict)
+				return
+			}
 			h.logger.Errorw("error registering withdrawal", "error", err)
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
