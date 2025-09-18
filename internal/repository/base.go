@@ -23,7 +23,7 @@ func (r *baseRepository) query(
 func (r *baseRepository) exec(
 	ctx context.Context, tx pgx.Tx, sqlQuery string, args ...interface{}) (pgconn.CommandTag, error) {
 	if tx == nil {
-		return r.pgdb.Pool().Exec(ctx, sqlQuery, args)
+		return r.pgdb.Pool().Exec(ctx, sqlQuery, args...)
 	}
 	return tx.Exec(ctx, sqlQuery, args...)
 }
