@@ -14,9 +14,9 @@ import (
 )
 
 type UserService struct {
-	repo   *repository.UserRepository
-	idp    *auth.IdentityProvider
-	logger *zap.SugaredLogger
+	repoFacade *repository.Facade
+	idp        *auth.IdentityProvider
+	logger     *zap.SugaredLogger
 }
 
 var (
@@ -24,16 +24,16 @@ var (
 	ErrWrongLoginPassword = errors.New("wrong combination of login and password used")
 )
 
-func NewUserService(ur *repository.UserRepository, idp *auth.IdentityProvider, l *zap.Logger) *UserService {
+func NewUserService(rf *repository.Facade, idp *auth.IdentityProvider, l *zap.Logger) *UserService {
 	return &UserService{
-		repo:   ur,
-		idp:    idp,
-		logger: logging.ComponentLogger(l, "user-management"),
+		repoFacade: rf,
+		idp:        idp,
+		logger:     logging.ComponentLogger(l, "user-management"),
 	}
 }
 
 func (s *UserService) RegisterUser(ctx context.Context, login, password string) error {
-	exists, err := s.repo.CheckUserExistsByLogin(ctx, login)
+	exists, err := s.repoFacade.CheckUserExistsByLogin(ctx, login)
 	if err != nil {
 		return fmt.Errorf("unable to check if user exists: %w", err)
 	}
@@ -42,7 +42,7 @@ func (s *UserService) RegisterUser(ctx context.Context, login, password string) 
 	}
 
 	authHash := utils.LoginPassHash(login, password)
-	userID, err := s.repo.CreateUser(ctx, login, authHash)
+	userID, err := s.repoFacade.CreateUser(ctx, login, authHash)
 	if err != nil {
 		return fmt.Errorf("unable to create user: %w", err)
 	}
@@ -56,7 +56,7 @@ func (s *UserService) RegisterUser(ctx context.Context, login, password string) 
 
 // LoginUser validates user data and generates new access token to be provided in an Authorization header
 func (s *UserService) LoginUser(ctx context.Context, login, password string) (*model.AuthorizationResult, error) {
-	user, err := s.repo.GetUserByLogin(ctx, login)
+	user, err := s.repoFacade.GetUserByLogin(ctx, login)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get user: %w", err)
 	}
@@ -73,7 +73,7 @@ func (s *UserService) LoginUser(ctx context.Context, login, password string) (*m
 	if err != nil {
 		return nil, fmt.Errorf("unable to generate access token: %w", err)
 	}
-	_, err = s.repo.UpdateUserLoginTS(ctx, user.ID)
+	_, err = s.repoFacade.UpdateUserLoginTS(ctx, user.ID)
 	if err != nil {
 		s.logger.Warnw("unable to update user login", "error", err)
 	}

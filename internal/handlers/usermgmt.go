@@ -54,6 +54,7 @@ func (h *UserManagementHandlers) registerUserHandler() http.HandlerFunc {
 			return
 		}
 
+		h.logger.Debugw("registering user", "login", loginData.Login)
 		err = h.userService.RegisterUser(r.Context(), loginData.Login, loginData.Password)
 		if err != nil {
 			if errors.Is(err, service.ErrUserAlreadyExists) {
@@ -65,6 +66,7 @@ func (h *UserManagementHandlers) registerUserHandler() http.HandlerFunc {
 			return
 		}
 
+		h.logger.Debugw("registered user", "login", loginData.Login)
 		h.authorize(r.Context(), rw, loginData)
 	}
 }
@@ -83,6 +85,7 @@ func (h *UserManagementHandlers) loginUserHandler() http.HandlerFunc {
 			return
 		}
 
+		h.logger.Debugw("logging user in", "login", loginData.Login)
 		h.authorize(r.Context(), rw, loginData)
 	}
 }
@@ -112,6 +115,7 @@ func (h *UserManagementHandlers) authorize(
 	}
 	http.SetCookie(rw, authCookie)
 
+	h.logger.Debugw("user authorized", "login", loginData.Login)
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusOK)
 	err = json.NewEncoder(rw).Encode(authResult)

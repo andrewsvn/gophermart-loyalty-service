@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/Masterminds/squirrel"
@@ -12,73 +11,74 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-type WithdrawalRepository struct {
+type withdrawalRepository struct {
 	baseRepository
+	pgdb *db.PostgresDB
 }
 
-const (
-	withdrawalTableName = "LS_WITHDRAWALS"
-	withdrawalColumns   = "ID, USER_ID, AMOUNT, CREATE_TS"
-)
-
-var (
-	ErrInsufficientBalance = errors.New("insufficient balance")
-)
-
-func NewWithdrawalRepository(db *db.PostgresDB) *WithdrawalRepository {
-	return &WithdrawalRepository{
-		baseRepository{
-			db:        db,
-			sqrl:      squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar),
-			tableName: withdrawalTableName,
-			columns:   withdrawalColumns,
+func newWithdrawalRepository(db *db.PostgresDB) *withdrawalRepository {
+	return &withdrawalRepository{
+		baseRepository: baseRepository{
+			pgdb: db,
 		},
+		pgdb: db,
 	}
 }
 
-func (r *WithdrawalRepository) GetWithdrawalByID(ctx context.Context, wdID string) (*model.Withdrawal, error) {
-	rows, err := r.queryRows(ctx, func(sb squirrel.SelectBuilder) squirrel.SelectBuilder {
-		return sb.Where(squirrel.Eq{"ID": wdID})
-	})
+func (r *withdrawalRepository) GetWithdrawalByID(ctx context.Context, wdID string) (*model.Withdrawal, error) {
+	sqlQuery, args, err := r.pgdb.Sqrl().
+		Select(withdrawalColumns).
+		From(withdrawalTableName).
+		Where(squirrel.Eq{"ID": wdID}).
+		ToSql()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrInvalidQuery, err)
+	}
+
+	rows, err := r.query(ctx, nil, sqlQuery, args...)
+	if err != nil {
+		return nil, fmt.Errorf("%w %s: %v", ErrExecuteSelect, withdrawalTableName, err)
 	}
 	defer rows.Close()
 
-	return r.fromRow(rows)
+	return r.withdrawalFromRow(rows)
 }
 
-func (r *WithdrawalRepository) GetWithdrawalsByUserID(
+func (r *withdrawalRepository) GetWithdrawalsByUserID(
 	ctx context.Context,
 	userID uuid.UUID,
 ) ([]*model.Withdrawal, error) {
-	rows, err := r.queryRows(ctx, func(sb squirrel.SelectBuilder) squirrel.SelectBuilder {
-		return sb.Where(squirrel.Eq{"USER_ID": userID})
-	})
+	sqlQuery, args, err := r.pgdb.Sqrl().
+		Select(withdrawalColumns).
+		From(withdrawalTableName).
+		Where(squirrel.Eq{"USER_ID": userID}).
+		ToSql()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrInvalidQuery, err)
+	}
+
+	rows, err := r.query(ctx, nil, sqlQuery, args...)
+	if err != nil {
+		return nil, fmt.Errorf("%w %s: %v", ErrExecuteSelect, withdrawalTableName, err)
 	}
 	defer rows.Close()
 
-	return r.fromRows(rows)
+	return r.withdrawalsFromRows(rows)
 }
 
-func (r *WithdrawalRepository) GetTotalWithdrawnByUserID(
-	ctx context.Context,
-	userID uuid.UUID,
-) (float64, error) {
-	sqlQuery, args, err := r.sqrl.
+func (r *withdrawalRepository) fetchWithdrawnSum(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (float64, error) {
+	sqlQuery, args, err := r.pgdb.Sqrl().
 		Select("COALESCE(SUM(AMOUNT), 0)").
-		From(r.tableName).
+		From(withdrawalTableName).
 		Where(squirrel.Eq{"USER_ID": userID}).
 		ToSql()
 	if err != nil {
 		return 0, err
 	}
 
-	rows, err := r.db.Pool().Query(ctx, sqlQuery, args...)
+	rows, err := r.query(ctx, tx, sqlQuery, args...)
 	if err != nil {
-		return 0, fmt.Errorf("error querying rows from table %s: %w", r.tableName, err)
+		return 0, fmt.Errorf("%w %s: %v", ErrExecuteSelect, withdrawalTableName, err)
 	}
 	defer rows.Close()
 
@@ -88,97 +88,79 @@ func (r *WithdrawalRepository) GetTotalWithdrawnByUserID(
 
 	var total float64
 	if err := rows.Scan(&total); err != nil {
-		return 0, fmt.Errorf("error scanning row from table %s: %w", r.tableName, err)
+		return 0, fmt.Errorf("%w %s: %v", ErrScanningRow, withdrawalTableName, err)
 	}
 	return total, nil
 }
 
-func (r *WithdrawalRepository) TryCreateWithdrawal(
+func (r *withdrawalRepository) checkWithdrawalExists(ctx context.Context, tx pgx.Tx, wdID string) (bool, error) {
+	sqlQuery, args, err := r.pgdb.Sqrl().
+		Select("ID").
+		From(withdrawalTableName).
+		Where(squirrel.Eq{"ID": wdID}).
+		ToSql()
+	if err != nil {
+		return false, fmt.Errorf("%w %s: %v", ErrInvalidQuery, withdrawalTableName, err)
+	}
+
+	rows, err := r.query(ctx, tx, sqlQuery, args...)
+	if err != nil {
+		return false, fmt.Errorf("%w %s: %v", ErrExecuteSelect, withdrawalTableName, err)
+	}
+	defer rows.Close()
+	return rows.Next(), nil
+}
+
+func (r *withdrawalRepository) createWithdrawal(
 	ctx context.Context,
+	tx pgx.Tx,
 	wdID string,
 	userID uuid.UUID,
 	amount float64,
 ) error {
-	// check if withdrawal with given ID already exists
-	sqlQuery, args, err := r.sqrl.
-		Select("ID").
-		From(r.tableName).
-		Where(squirrel.Eq{"ID": wdID}).
+	sqlQuery, args, err := r.pgdb.Sqrl().Insert(withdrawalTableName).
+		Columns("ID, USER_ID, AMOUNT").
+		Values(wdID, userID, amount).
 		ToSql()
 	if err != nil {
-		return fmt.Errorf("error building query: %w", err)
+		return fmt.Errorf("%w: %v", ErrInvalidQuery, err)
 	}
 
-	rows, err := r.db.Pool().Query(ctx, sqlQuery, args...)
+	_, err = r.exec(ctx, tx, sqlQuery, args...)
 	if err != nil {
-		return fmt.Errorf("error querying rows from table %s: %w", r.tableName, err)
-	}
-	defer rows.Close()
-
-	if rows.Next() {
-		return ErrDuplicateEntity
-	}
-
-	// TODO: if aggregated balance is stored as single value for user, this can be simplified
-
-	// create withdrawal if balance is enough
-	sqlQuery = `
-WITH available AS (
-  SELECT USER_ID, SUM(VALUE) AS TOTAL
-  FROM (
-    SELECT USER_ID, ACCRUAL AS VALUE FROM LS_ORDERS WHERE USER_ID = $2
-  	UNION ALL
-    SELECT USER_ID, -AMOUNT AS VALUE FROM LS_WITHDRAWALS WHERE USER_ID = $2
-  )
-  GROUP BY USER_ID
-),
-possible AS (
-  SELECT USER_ID FROM available WHERE TOTAL >= $3
-)
-INSERT INTO LS_WITHDRAWALS (ID, USER_ID, AMOUNT)
-SELECT $1, USER_ID, $3 FROM possible
-RETURNING ID
-`
-	rows, err = r.db.Pool().Query(ctx, sqlQuery, wdID, userID, amount)
-	if err != nil {
-		return fmt.Errorf("error executing withdrawal query: %w", err)
-	}
-	defer rows.Close()
-
-	if !rows.Next() {
-		return ErrInsufficientBalance
+		return fmt.Errorf("%w %s: %w", ErrExecuteInsert, withdrawalTableName, err)
 	}
 	return nil
 }
 
-func (r *WithdrawalRepository) fromRow(rows pgx.Rows) (*model.Withdrawal, error) {
+func (r *withdrawalRepository) withdrawalFromRow(rows pgx.Rows) (*model.Withdrawal, error) {
 	if !rows.Next() {
 		return nil, ErrEntityNotFound
 	}
-	return r.scan(rows)
+	return r.scanWithdrawal(rows)
 }
 
-func (r *WithdrawalRepository) fromRows(rows pgx.Rows) ([]*model.Withdrawal, error) {
+func (r *withdrawalRepository) withdrawalsFromRows(rows pgx.Rows) ([]*model.Withdrawal, error) {
 	wds := make([]*model.Withdrawal, 0)
 	for rows.Next() {
-		wd, err := r.scan(rows)
+		wd, err := r.scanWithdrawal(rows)
 		if err != nil {
 			return nil, err
 		}
 		wds = append(wds, wd)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error reading rows from table %s: %w", r.tableName, err)
+		return nil, fmt.Errorf("%w: %v", ErrFetchingRows, err)
 	}
 
 	return wds, nil
 }
 
-func (r *WithdrawalRepository) scan(rows pgx.Rows) (*model.Withdrawal, error) {
+func (r *withdrawalRepository) scanWithdrawal(rows pgx.Rows) (*model.Withdrawal, error) {
 	wd := model.Withdrawal{}
 	err := rows.Scan(&wd.ID, &wd.UserID, &wd.Sum, &wd.ProcessedAt)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrScanningRow, err)
 	}
 	return &wd, nil
 }

@@ -1,10 +1,14 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type Withdrawal struct {
 	ID          string    `json:"order"`
-	UserID      string    `json:"-"`
+	UserID      uuid.UUID `json:"-"`
 	Sum         float64   `json:"sum"`
 	ProcessedAt time.Time `json:"processedAt"`
 }

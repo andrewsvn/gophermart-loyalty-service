@@ -26,6 +26,8 @@ const (
 type RestServer struct {
 	httpSrv *http.Server
 	logger  *zap.SugaredLogger
+
+	shutdownGracePeriod time.Duration
 }
 
 func NewRestServer(cfg *config.ServerConfig, l *zap.Logger, providers ...RouteProvider) *RestServer {
@@ -48,6 +50,8 @@ func NewRestServer(cfg *config.ServerConfig, l *zap.Logger, providers ...RoutePr
 			Handler: r,
 		},
 		logger: logger,
+
+		shutdownGracePeriod: time.Duration(cfg.GracePeriodSec) * time.Second,
 	}
 }
 
@@ -64,7 +68,7 @@ func (rs *RestServer) Start() {
 
 func (rs *RestServer) GracefulShutdown() {
 	rs.logger.Info("shutting down http server...")
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second) // TODO: configurable
+	ctx, cancel := context.WithTimeout(context.Background(), rs.shutdownGracePeriod)
 	defer cancel()
 	if err := rs.httpSrv.Shutdown(ctx); err != nil {
 		rs.logger.Error("failed to shutdown http server", zap.Error(err))

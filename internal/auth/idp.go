@@ -23,9 +23,9 @@ type IdentityClaims struct {
 }
 
 type IdentityProvider struct {
-	cfg       *config.AuthConfig
-	userRepo  *repository.UserRepository
-	secretKey []byte
+	cfg        *config.AuthConfig
+	repoFacade *repository.Facade
+	secretKey  []byte
 
 	logger *zap.SugaredLogger
 }
@@ -36,7 +36,7 @@ var (
 
 func NewIdentityProvider(
 	cfg *config.AuthConfig,
-	ur *repository.UserRepository,
+	rf *repository.Facade,
 	l *zap.Logger,
 ) (*IdentityProvider, error) {
 	logger := logging.ComponentLogger(l, "identity-provider")
@@ -55,10 +55,10 @@ func NewIdentityProvider(
 	}
 
 	return &IdentityProvider{
-		cfg:       cfg,
-		userRepo:  ur,
-		secretKey: secretKey,
-		logger:    logger,
+		cfg:        cfg,
+		repoFacade: rf,
+		secretKey:  secretKey,
+		logger:     logger,
 	}, nil
 }
 
@@ -85,7 +85,7 @@ func (idp *IdentityProvider) AuthorizeUser(ctx context.Context, accessToken stri
 		return nil, fmt.Errorf("%w: %v", ErrInvalidToken, err)
 	}
 
-	user, err := idp.userRepo.GetUserByID(ctx, identityClaims.UserID)
+	user, err := idp.repoFacade.GetUserByID(ctx, identityClaims.UserID)
 	if err != nil {
 		if errors.Is(err, repository.ErrEntityNotFound) {
 			return nil, ErrInvalidToken

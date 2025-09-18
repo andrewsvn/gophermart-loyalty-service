@@ -2,67 +2,28 @@ package repository
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/Masterminds/squirrel"
 	"github.com/andrewsvn/gophermart-ls/internal/db"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type baseRepository struct {
-	db   *db.PostgresDB
-	sqrl squirrel.StatementBuilderType
-
-	columns   string
-	tableName string
+	pgdb *db.PostgresDB
 }
 
-func (r *baseRepository) queryRows(
-	ctx context.Context,
-	selectCriteria func(squirrel.SelectBuilder) squirrel.SelectBuilder,
-) (pgx.Rows, error) {
-	sb := r.sqrl.Select(r.columns).From(r.tableName)
-	sqlQuery, args, err := selectCriteria(sb).ToSql()
-	if err != nil {
-		return nil, fmt.Errorf("%v: %w", ErrInvalidQuery, err)
+func (r *baseRepository) query(
+	ctx context.Context, tx pgx.Tx, sqlQuery string, args ...interface{}) (pgx.Rows, error) {
+	if tx == nil {
+		return r.pgdb.Pool().Query(ctx, sqlQuery, args...)
 	}
-
-	rows, err := r.db.Pool().Query(ctx, sqlQuery, args...)
-	if err != nil {
-		return nil, fmt.Errorf("error querying rows from table %s: %w", r.tableName, err)
-	}
-	return rows, nil
+	return tx.Query(ctx, sqlQuery, args...)
 }
 
-func (r *baseRepository) insertRow(
-	ctx context.Context,
-	values ...interface{},
-) error {
-	sqlQuery, args, err := r.sqrl.Insert(r.tableName).Columns(r.columns).Values(values...).ToSql()
-	if err != nil {
-		return fmt.Errorf("%v: %w", ErrInvalidQuery, err)
+func (r *baseRepository) exec(
+	ctx context.Context, tx pgx.Tx, sqlQuery string, args ...interface{}) (pgconn.CommandTag, error) {
+	if tx == nil {
+		return r.pgdb.Pool().Exec(ctx, sqlQuery, args)
 	}
-
-	_, err = r.db.Pool().Exec(ctx, sqlQuery, args...)
-	if err != nil {
-		return fmt.Errorf("error inserting row into table %s: %w", r.tableName, err)
-	}
-	return nil
-}
-
-func (r *baseRepository) updateRows(
-	ctx context.Context,
-	updateClause func(squirrel.UpdateBuilder) squirrel.UpdateBuilder,
-) (bool, error) {
-	ub := r.sqrl.Update(r.tableName)
-	sqlQuery, args, err := updateClause(ub).ToSql()
-	if err != nil {
-		return false, fmt.Errorf("%v: %w", ErrInvalidQuery, err)
-	}
-
-	res, err := r.db.Pool().Exec(ctx, sqlQuery, args...)
-	if err != nil {
-		return false, fmt.Errorf("error updating row in table %s: %w", r.tableName, err)
-	}
-	return res.RowsAffected() > 0, nil
+	return tx.Exec(ctx, sqlQuery, args...)
 }

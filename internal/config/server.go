@@ -19,6 +19,8 @@ type ServerConfig struct {
 	URL               string `env:"RUN_ADDRESS" envDefault:"localhost:8080"`
 	AccrualServiceURL string `env:"ACCRUAL_SYSTEM_ADDRESS"`
 	DatabaseURL       string `env:"DATABASE_URI"`
+
+	GracePeriodSec int `env:"GRACE_PERIOD" envDefault:"30"`
 }
 
 func GetServerConfig() (*ServerConfig, error) {

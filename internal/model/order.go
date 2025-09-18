@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type OrderStatus string
 
@@ -13,7 +17,7 @@ const (
 
 type Order struct {
 	ID         string      `json:"number"`
-	UserID     string      `json:"-"`
+	UserID     uuid.UUID   `json:"-"`
 	Status     OrderStatus `json:"status"`
 	Accrual    float64     `json:"accrual,omitempty"`
 	UploadedAt time.Time   `json:"uploadedAt"`

@@ -17,6 +17,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// TODO: move this to configuration?
 const (
 	accrualWorkerCount          = 10
 	accrualResultBufferSize     = 2 * accrualWorkerCount
@@ -73,7 +74,7 @@ func newFailurePollingResult(orderID string, oc outcome) *accrualPollingResult {
 }
 
 type AccrualPollingQueue struct {
-	ordersRepo *repository.OrderRepository
+	repoFacade *repository.Facade
 	serviceURL string
 	logger     *zap.SugaredLogger
 
@@ -101,12 +102,12 @@ type AccrualPollingQueue struct {
 }
 
 func NewAccrualPollingQueue(
-	or *repository.OrderRepository,
+	rf *repository.Facade,
 	url string,
 	l *zap.Logger,
 ) *AccrualPollingQueue {
 	queue := &AccrualPollingQueue{
-		ordersRepo: or,
+		repoFacade: rf,
 		serviceURL: url,
 		logger:     logging.ComponentLogger(l, "accrual-polling"),
 	}
@@ -177,7 +178,7 @@ func (pq *AccrualPollingQueue) orderIDHarvestFunc(ctx context.Context) {
 
 		pq.logger.Debugw("fetching new batch of orders for update",
 			"batchSize", accrualHarvestBatchSize)
-		harvested, err := pq.ordersRepo.FetchOrderIDsForUpdate(ctx, accrualHarvestBatchSize)
+		harvested, err := pq.repoFacade.FetchOrderIDsForUpdate(ctx, accrualHarvestBatchSize)
 		if err != nil {
 			pq.logger.Warnw("failed to fetch order ids for update", "error", err)
 			time.Sleep(accrualHarvestSleepInterval)
@@ -236,7 +237,7 @@ func (pq *AccrualPollingQueue) accrualResultProcessing(ctx context.Context) {
 			pq.logger.Debugw("updating order accrual data",
 				"accrual", result.Payload)
 
-			err := pq.ordersRepo.UpdateOrderAccrual(ctx, result.Payload, result.Timestamp)
+			err := pq.repoFacade.UpdateOrderAccrual(ctx, result.Payload, result.Timestamp)
 			if err != nil {
 				pq.logger.Errorw("failed to update order accrual result in repository",
 					"error", err)
@@ -327,7 +328,7 @@ func (pq *AccrualPollingQueue) appendOrderIDs(newOrderIDs ...string) {
 }
 
 func (pq *AccrualPollingQueue) cleanupPendingStatuses(ctx context.Context) {
-	err := pq.ordersRepo.ResetPendingOrders(ctx)
+	err := pq.repoFacade.ResetPendingOrders(ctx)
 	if err != nil {
 		pq.logger.Errorw("unable to clean pending status for orders",
 			"error", err)

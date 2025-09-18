@@ -56,19 +56,17 @@ func run() error {
 	}
 	defer pgdb.Close()
 
-	userRepo := repository.NewUserRepository(pgdb)
-	orderRepo := repository.NewOrderRepository(pgdb)
-	withdrawalRepo := repository.NewWithdrawalRepository(pgdb)
+	repoFacade := repository.NewFacade(pgdb)
 
 	logger.Info("initializing identity provider")
-	idp, err := auth.NewIdentityProvider(&cfg.AuthConfig, userRepo, logger)
+	idp, err := auth.NewIdentityProvider(&cfg.AuthConfig, repoFacade, logger)
 	if err != nil {
 		return err
 	}
 
 	logger.Info("initializing service layer")
-	userService := service.NewUserService(userRepo, idp, logger)
-	orderService := service.NewOrderService(orderRepo, withdrawalRepo, logger)
+	userService := service.NewUserService(repoFacade, idp, logger)
+	orderService := service.NewOrderService(repoFacade, logger)
 
 	logger.Info("initializing HTTP server")
 	userHandlers := handlers.NewUserManagementHandlers(userService)
@@ -79,7 +77,7 @@ func run() error {
 	)
 
 	logger.Info("initializing accrual system integration")
-	accrualInt := integration.NewAccrualPollingQueue(orderRepo, cfg.AccrualServiceURL, logger)
+	accrualInt := integration.NewAccrualPollingQueue(repoFacade, cfg.AccrualServiceURL, logger)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)

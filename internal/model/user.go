@@ -7,7 +7,6 @@ import (
 )
 
 // User is main actor entity which is used by both authentication and loyalty data
-// TODO: maybe we don't need this as a separate entity since there is no advanced user management right now
 type User struct {
 	ID          uuid.UUID  `json:"id"`
 	Login       string     `json:"login"`

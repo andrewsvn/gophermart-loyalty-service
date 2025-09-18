@@ -116,12 +116,16 @@ func (h *OrderManagementHandlers) getOrdersHandler() http.HandlerFunc {
 			return
 		}
 
+		h.logger.Debugw("getting orders list", "userID", userID)
 		orders, err := h.orderService.GetOrdersList(ctx, userID)
 		if err != nil {
 			h.logger.Errorw("error getting orders list", "error", err)
 			http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
 
+		h.logger.Debugw("orders fetched",
+			"userID", userID,
+			"count", len(orders))
 		if len(orders) == 0 {
 			rw.WriteHeader(http.StatusNoContent)
 			return
@@ -145,6 +149,7 @@ func (h *OrderManagementHandlers) getBalanceHandler() http.HandlerFunc {
 			return
 		}
 
+		h.logger.Debugw("getting balance", "userID", userID)
 		balance, err := h.orderService.GetUserBalance(ctx, userID)
 		if err != nil {
 			h.logger.Errorw("error getting user balance", "error", err)
@@ -152,6 +157,7 @@ func (h *OrderManagementHandlers) getBalanceHandler() http.HandlerFunc {
 			return
 		}
 
+		h.logger.Debugw("balance fetched")
 		payload, err := json.Marshal(balance)
 		if err != nil {
 			h.logger.Errorw("failed to marshal payload", "error", err)
@@ -184,6 +190,7 @@ func (h *OrderManagementHandlers) withdrawHandler() http.HandlerFunc {
 			http.Error(rw, "sum must be a positive numeric value", http.StatusBadRequest)
 		}
 
+		h.logger.Debugw("creating new withdrawal", "userID", userID, "orderID", wdOrder.OrderID)
 		err = h.orderService.RegisterWithdrawal(ctx, userID, wdOrder)
 		if err != nil {
 			if errors.Is(err, service.ErrInvalidOrderID) {
@@ -194,7 +201,7 @@ func (h *OrderManagementHandlers) withdrawHandler() http.HandlerFunc {
 				http.Error(rw, err.Error(), http.StatusPaymentRequired)
 				return
 			}
-			if errors.Is(err, service.ErrOrderExistsForSameUser) {
+			if errors.Is(err, service.ErrWithdrawalAlreadyExists) {
 				http.Error(rw, err.Error(), http.StatusConflict)
 				return
 			}
@@ -203,6 +210,7 @@ func (h *OrderManagementHandlers) withdrawHandler() http.HandlerFunc {
 			return
 		}
 
+		h.logger.Debugw("withdrawal created", "userID", userID, "orderID", wdOrder.OrderID)
 		rw.WriteHeader(http.StatusOK)
 	}
 }
@@ -215,6 +223,7 @@ func (h *OrderManagementHandlers) getWithdrawalsHandler() http.HandlerFunc {
 			return
 		}
 
+		h.logger.Debugw("getting withdrawals list", "userID", userID)
 		withdraws, err := h.orderService.GetWithdrawalsList(ctx, userID)
 		if err != nil {
 			h.logger.Errorw("error getting withdrawals list", "error", err)
@@ -222,6 +231,9 @@ func (h *OrderManagementHandlers) getWithdrawalsHandler() http.HandlerFunc {
 			return
 		}
 
+		h.logger.Debugw("withdrawals fetched",
+			"userID", userID,
+			"count", len(withdraws))
 		payload, err := json.Marshal(withdraws)
 		if err != nil {
 			h.logger.Errorw("failed to marshal payload", "error", err)

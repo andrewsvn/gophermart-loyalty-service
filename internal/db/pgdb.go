@@ -2,11 +2,17 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/Masterminds/squirrel"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+var (
+	ErrCreateTx = errors.New("error creating DB transaction")
 )
 
 type PostgresDB struct {
@@ -36,4 +42,20 @@ func (pgdb *PostgresDB) Pool() *pgxpool.Pool {
 
 func (pgdb *PostgresDB) Sqrl() squirrel.StatementBuilderType {
 	return squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
+}
+
+func (pgdb *PostgresDB) BeginTx(ctx context.Context) (pgx.Tx, error) {
+	tx, err := pgdb.dbpool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrCreateTx, err)
+	}
+	return tx, nil
+}
+
+func (pgdb *PostgresDB) CommitTx(ctx context.Context, tx pgx.Tx) {
+	_ = tx.Commit(ctx)
+}
+
+func (pgdb *PostgresDB) RollbackTx(ctx context.Context, tx pgx.Tx) {
+	_ = tx.Rollback(ctx)
 }

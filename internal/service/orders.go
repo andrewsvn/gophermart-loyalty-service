@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/andrewsvn/gophermart-ls/internal/logging"
 	"github.com/andrewsvn/gophermart-ls/internal/model"
@@ -15,10 +14,8 @@ import (
 )
 
 type OrderService struct {
-	orderRepo      *repository.OrderRepository
-	withdrawalRepo *repository.WithdrawalRepository
-	userRepo       *repository.UserRepository
-	logger         *zap.SugaredLogger
+	repoFacade *repository.Facade
+	logger     *zap.SugaredLogger
 }
 
 var (
@@ -30,14 +27,12 @@ var (
 )
 
 func NewOrderService(
-	or *repository.OrderRepository,
-	wr *repository.WithdrawalRepository,
+	rf *repository.Facade,
 	l *zap.Logger,
 ) *OrderService {
 	return &OrderService{
-		orderRepo:      or,
-		withdrawalRepo: wr,
-		logger:         logging.ComponentLogger(l, "order-management"),
+		repoFacade: rf,
+		logger:     logging.ComponentLogger(l, "order-management"),
 	}
 }
 
@@ -48,23 +43,27 @@ func (s *OrderService) RegisterOrder(ctx context.Context, userID uuid.UUID, orde
 		return ErrInvalidOrderID
 	}
 
-	existingOrder, err := s.orderRepo.GetOrderByID(ctx, orderID)
+	existingOrder, err := s.repoFacade.GetOrderByID(ctx, orderID)
 	if err != nil {
 		return fmt.Errorf("error getting existing order: %w", err)
 	}
 	if existingOrder != nil {
-		if strings.EqualFold(existingOrder.UserID, userID.String()) {
+		if existingOrder.UserID == userID {
 			return ErrOrderExistsForSameUser
 		} else {
 			return ErrOrderExistsForOtherUser
 		}
 	}
 
-	return s.orderRepo.CreateNewOrder(ctx, orderID, userID)
+	err = s.repoFacade.CreateNewOrder(ctx, orderID, userID)
+	if err != nil {
+		return fmt.Errorf("error creating new order: %w", err)
+	}
+	return nil
 }
 
 func (s *OrderService) GetOrdersList(ctx context.Context, userID uuid.UUID) ([]*model.Order, error) {
-	orders, err := s.orderRepo.GetOrdersByUserID(ctx, userID)
+	orders, err := s.repoFacade.GetOrdersByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read orders data: %w", err)
 	}
@@ -76,7 +75,7 @@ func (s *OrderService) RegisterWithdrawal(ctx context.Context, userID uuid.UUID,
 		return ErrInvalidOrderID
 	}
 
-	err := s.withdrawalRepo.TryCreateWithdrawal(ctx, wdOrder.OrderID, userID, wdOrder.Sum)
+	err := s.repoFacade.TryCreateWithdrawal(ctx, wdOrder.OrderID, userID, wdOrder.Sum)
 	if err != nil {
 		if errors.Is(err, repository.ErrInsufficientBalance) {
 			return ErrNotEnoughBalance
@@ -90,7 +89,7 @@ func (s *OrderService) RegisterWithdrawal(ctx context.Context, userID uuid.UUID,
 }
 
 func (s *OrderService) GetWithdrawalsList(ctx context.Context, userID uuid.UUID) ([]*model.Withdrawal, error) {
-	wds, err := s.withdrawalRepo.GetWithdrawalsByUserID(ctx, userID)
+	wds, err := s.repoFacade.GetWithdrawalsByUserID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read withdrawals data: %w", err)
 	}
@@ -98,17 +97,9 @@ func (s *OrderService) GetWithdrawalsList(ctx context.Context, userID uuid.UUID)
 }
 
 func (s *OrderService) GetUserBalance(ctx context.Context, userID uuid.UUID) (*model.Balance, error) {
-	accrued, err := s.orderRepo.GetTotalAccrualByUserID(ctx, userID)
+	balance, err := s.repoFacade.GetUserBalance(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read orders data: %w", err)
+		return nil, fmt.Errorf("unable to read balance data: %w", err)
 	}
-	withdrawn, err := s.withdrawalRepo.GetTotalWithdrawnByUserID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read withdrawals data: %w", err)
-	}
-
-	return &model.Balance{
-		Current:   accrued - withdrawn,
-		Withdrawn: withdrawn,
-	}, nil
+	return balance, nil
 }
