@@ -1,4 +1,4 @@
-package repository
+package postgres
 
 const (
 	userTableName       = "LS_USERS"

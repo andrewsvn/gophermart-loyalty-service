@@ -11,9 +11,9 @@ import (
 	"github.com/andrewsvn/gophermart-ls/internal/config"
 	"github.com/andrewsvn/gophermart-ls/internal/db"
 	"github.com/andrewsvn/gophermart-ls/internal/handlers"
-	"github.com/andrewsvn/gophermart-ls/internal/integration"
+	"github.com/andrewsvn/gophermart-ls/internal/integration/accrual"
 	"github.com/andrewsvn/gophermart-ls/internal/logging"
-	"github.com/andrewsvn/gophermart-ls/internal/repository"
+	"github.com/andrewsvn/gophermart-ls/internal/repository/postgres"
 	"github.com/andrewsvn/gophermart-ls/internal/service"
 	"go.uber.org/zap"
 )
@@ -56,17 +56,17 @@ func run() error {
 	}
 	defer pgdb.Close()
 
-	repoFacade := repository.NewFacade(pgdb)
+	storageManager := postgres.NewPgStorageManager(pgdb)
 
 	logger.Info("initializing identity provider")
-	idp, err := auth.NewIdentityProvider(&cfg.AuthConfig, repoFacade, logger)
+	idp, err := auth.NewIdentityProvider(&cfg.AuthConfig, storageManager.GetUserStorage(), logger)
 	if err != nil {
 		return err
 	}
 
 	logger.Info("initializing service layer")
-	userService := service.NewUserService(repoFacade, idp, logger)
-	orderService := service.NewOrderService(repoFacade, logger)
+	userService := service.NewUserService(storageManager.GetUserStorage(), idp, logger)
+	orderService := service.NewOrderService(storageManager.GetLoyaltyStorage(), logger)
 
 	logger.Info("initializing HTTP server")
 	userHandlers := handlers.NewUserManagementHandlers(userService)
@@ -77,7 +77,7 @@ func run() error {
 	)
 
 	logger.Info("initializing accrual system integration")
-	accrualInt := integration.NewAccrualPollingQueue(repoFacade, cfg.AccrualServiceURL, logger)
+	accrualInt := accrual.NewIntegrationFlow(&cfg.AccrualIntegrationConfig, storageManager.GetLoyaltyStorage(), logger)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)

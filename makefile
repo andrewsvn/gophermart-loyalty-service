@@ -7,7 +7,7 @@ build:
 test:
 	go test ./...
 
-generate-testdata-build:
+datagen-build:
 	go build -o ./cmd/tools/datagen/ ./cmd/tools/datagen
 
 fake-accrual-build:

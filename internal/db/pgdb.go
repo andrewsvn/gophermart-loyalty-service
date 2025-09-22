@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -38,10 +37,6 @@ func (pgdb *PostgresDB) Close() {
 
 func (pgdb *PostgresDB) Pool() *pgxpool.Pool {
 	return pgdb.dbpool
-}
-
-func (pgdb *PostgresDB) Sqrl() squirrel.StatementBuilderType {
-	return squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
 }
 
 func (pgdb *PostgresDB) BeginTx(ctx context.Context) (pgx.Tx, error) {

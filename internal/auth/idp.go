@@ -10,6 +10,7 @@ import (
 	"github.com/andrewsvn/gophermart-ls/internal/config"
 	"github.com/andrewsvn/gophermart-ls/internal/logging"
 	"github.com/andrewsvn/gophermart-ls/internal/repository"
+	errors2 "github.com/andrewsvn/gophermart-ls/internal/repository/common"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -23,9 +24,9 @@ type IdentityClaims struct {
 }
 
 type IdentityProvider struct {
-	cfg        *config.AuthConfig
-	repoFacade *repository.Facade
-	secretKey  []byte
+	cfg         *config.AuthConfig
+	userStorage repository.UserStorage
+	secretKey   []byte
 
 	logger *zap.SugaredLogger
 }
@@ -36,7 +37,7 @@ var (
 
 func NewIdentityProvider(
 	cfg *config.AuthConfig,
-	rf *repository.Facade,
+	us repository.UserStorage,
 	l *zap.Logger,
 ) (*IdentityProvider, error) {
 	logger := logging.ComponentLogger(l, "identity-provider")
@@ -55,10 +56,10 @@ func NewIdentityProvider(
 	}
 
 	return &IdentityProvider{
-		cfg:        cfg,
-		repoFacade: rf,
-		secretKey:  secretKey,
-		logger:     logger,
+		cfg:         cfg,
+		userStorage: us,
+		secretKey:   secretKey,
+		logger:      logger,
 	}, nil
 }
 
@@ -85,9 +86,9 @@ func (idp *IdentityProvider) AuthorizeUser(ctx context.Context, accessToken stri
 		return nil, fmt.Errorf("%w: %v", ErrInvalidToken, err)
 	}
 
-	user, err := idp.repoFacade.GetUserByID(ctx, identityClaims.UserID)
+	user, err := idp.userStorage.GetUserByID(ctx, identityClaims.UserID)
 	if err != nil {
-		if errors.Is(err, repository.ErrEntityNotFound) {
+		if errors.Is(err, errors2.ErrEntityNotFound) {
 			return nil, ErrInvalidToken
 		}
 		return nil, err

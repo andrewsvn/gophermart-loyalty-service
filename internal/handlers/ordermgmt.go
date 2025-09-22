@@ -18,14 +18,14 @@ import (
 )
 
 type OrderManagementHandlers struct {
-	orderService  *service.OrderService
+	orderService  *service.LoyaltyService
 	compressor    *middleware.Compressing
 	authenticator *middleware.Authorization
 	logger        *zap.SugaredLogger
 }
 
 func NewOrderManagementHandlers(
-	os *service.OrderService,
+	os *service.LoyaltyService,
 	idp *auth.IdentityProvider,
 	baseLogger *zap.Logger,
 ) *OrderManagementHandlers {
