@@ -7,17 +7,14 @@ import (
 	"strings"
 
 	"github.com/andrewsvn/gophermart-ls/internal/auth"
+	"github.com/andrewsvn/gophermart-ls/internal/handlers/utils"
 	"github.com/andrewsvn/gophermart-ls/internal/logging"
 	"go.uber.org/zap"
 )
 
-type AuthVariableKey string
-
 const (
 	authorizationHeaderName = "Authorization"
 	authorizationType       = "Bearer"
-
-	AuthorizedUserIDVar AuthVariableKey = "userID"
 )
 
 type Authorization struct {
@@ -71,6 +68,6 @@ func (a *Authorization) Middleware(next http.Handler) http.Handler {
 		}
 
 		a.logger.Debugw("authorizing user", "user", *userID)
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), AuthorizedUserIDVar, *userID)))
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), utils.AuthorizedUserIDVar, *userID)))
 	})
 }

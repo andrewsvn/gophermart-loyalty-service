@@ -9,7 +9,7 @@ import (
 func GenerateLuhnNumber(rnd *rand.Rand) string {
 	intVal := (10000000000 + rnd.Int63()%90000000000) * 10
 	strVal := strconv.FormatInt(intVal, 10)
-	intVal += int64(10 - luhnSum(strVal))
+	intVal += int64(10-luhnSum(strVal)) % 10
 	return strconv.FormatInt(intVal, 10)
 }
 

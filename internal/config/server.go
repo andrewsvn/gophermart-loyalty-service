@@ -15,10 +15,10 @@ var (
 type ServerConfig struct {
 	LogConfig
 	AuthConfig
+	AccrualIntegrationConfig
 
-	URL               string `env:"RUN_ADDRESS" envDefault:"localhost:8080"`
-	AccrualServiceURL string `env:"ACCRUAL_SYSTEM_ADDRESS"`
-	DatabaseURL       string `env:"DATABASE_URI"`
+	URL         string `env:"RUN_ADDRESS" envDefault:"localhost:8080"`
+	DatabaseURL string `env:"DATABASE_URI"`
 
 	GracePeriodSec int `env:"GRACE_PERIOD" envDefault:"30"`
 }
@@ -29,10 +29,10 @@ func GetServerConfig() (*ServerConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrParseConfig, err)
 	}
-	cfg.BindFlags()
+	cfg.bindFlags()
 	flag.Parse()
 
-	err = cfg.Validate()
+	err = cfg.validate()
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrParseConfig, err)
 	}
@@ -40,27 +40,28 @@ func GetServerConfig() (*ServerConfig, error) {
 	return &cfg, nil
 }
 
-func (cfg *ServerConfig) BindFlags() {
+func (cfg *ServerConfig) bindFlags() {
 	cfg.LogConfig.BindFlags()
 	cfg.AuthConfig.BindFlags()
+	cfg.AccrualIntegrationConfig.BindFlags()
 
 	flag.StringVar(&cfg.URL, "a", cfg.URL,
 		"The address to run the service on")
-	flag.StringVar(&cfg.AccrualServiceURL, "r", cfg.AccrualServiceURL,
-		"The address of the accrual service")
 	flag.StringVar(&cfg.DatabaseURL, "d", cfg.DatabaseURL,
 		"The address of the postgres database")
 }
 
-func (cfg *ServerConfig) Validate() error {
+func (cfg *ServerConfig) validate() error {
 	if cfg.URL == "" {
 		return fmt.Errorf("url is required")
-	}
-	if cfg.AccrualServiceURL == "" {
-		return fmt.Errorf("accrual service url is required")
 	}
 	if cfg.DatabaseURL == "" {
 		return fmt.Errorf("databaseUrl is required")
 	}
+
+	if err := cfg.AuthConfig.Validate(); err != nil {
+		return err
+	}
+
 	return nil
 }

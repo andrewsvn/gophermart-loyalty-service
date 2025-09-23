@@ -26,15 +26,19 @@ func main() {
 }
 
 const (
-	nUsers        int   = 5
-	nOrders       int   = 200
-	nWithdrawals  int   = 10
+	nUsers       int = 5
+	nOrders      int = 200
+	nWithdrawals int = 10
+)
+
+const (
 	maxAccrual    int64 = 1000
 	maxWithdrawal int64 = 2000
 )
 
 var userIDs []uuid.UUID
 var userBalances []int64
+var userWithdrawals []int64
 
 var sqrl = squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
 var rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -56,15 +60,15 @@ func run() error {
 		return err
 	}
 
-	ctx := context.Background()
 	logger.Info("initializing storage")
-	pgdb, err := db.NewPostgresDB(ctx, cfg.DatabaseURL)
+	pgdb, err := db.NewPostgresDB(cfg.DatabaseURL)
 	if err != nil {
 		return err
 	}
 	defer pgdb.Close()
 
 	// do everything in transaction
+	ctx := context.Background()
 	tx, err := pgdb.Pool().Begin(ctx)
 	if err != nil {
 		return err
@@ -83,6 +87,10 @@ func run() error {
 		return err
 	}
 	_, err = tx.Exec(ctx, "TRUNCATE TABLE LS_WITHDRAWALS")
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, "TRUNCATE TABLE LS_BALANCES")
 	if err != nil {
 		return err
 	}
@@ -110,6 +118,12 @@ func run() error {
 		return err
 	}
 
+	logger.Info("generating balances")
+	err = generateBalances(ctx, tx)
+	if err != nil {
+		return err
+	}
+
 	logger.Info("all test data generated")
 	return tx.Commit(ctx)
 }
@@ -120,6 +134,7 @@ func generateUsers(ctx context.Context, tx pgx.Tx) error {
 		id := uuid.New()
 		userIDs = append(userIDs, id)
 		userBalances = append(userBalances, 0)
+		userWithdrawals = append(userWithdrawals, 0)
 
 		userLogin := fmt.Sprintf("user%d", i)
 		userPass := fmt.Sprintf("pass%d", i)
@@ -181,11 +196,35 @@ func generateWithdrawals(ctx context.Context, tx pgx.Tx) error {
 	ib := sqrl.Insert("LS_WITHDRAWALS").Columns("ID", "USER_ID", "AMOUNT", "CREATE_TS")
 	for i := 0; i < nWithdrawals; i++ {
 		userRoll := rnd.Intn(nUsers)
+		for userBalances[userRoll] < maxWithdrawal {
+			userRoll = rnd.Intn(nUsers)
+		}
 
 		wdID := utils.GenerateLuhnNumber(rnd)
 		userID := userIDs[userRoll]
 		amount := rnd.Int63n(maxWithdrawal)
+
+		userWithdrawals[userRoll] += amount
+		userBalances[userRoll] -= amount
+
 		ib = ib.Values(wdID, userID, amount, time.Now())
+	}
+	sql, args, err := ib.ToSql()
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, sql, args...)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func generateBalances(ctx context.Context, tx pgx.Tx) error {
+	ib := sqrl.Insert("LS_BALANCES").Columns("USER_ID", "BALANCE", "WITHDRAWN", "LAST_UPDATE_TS")
+	for i := 0; i < nUsers; i++ {
+		ib = ib.Values(userIDs[i], userBalances[i], userWithdrawals[i], time.Now())
 	}
 	sql, args, err := ib.ToSql()
 	if err != nil {

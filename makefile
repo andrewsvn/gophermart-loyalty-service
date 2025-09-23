@@ -7,10 +7,10 @@ build:
 test:
 	go test ./...
 
-generate-testdata-build:
+datagen-build:
 	go build -o ./cmd/tools/datagen/ ./cmd/tools/datagen
 
-fake-accrual-build:
+accrual-fake-build:
 	go build -o ./cmd/tools/accrual_fake/ ./cmd/tools/accrual_fake
 
 compose-up:

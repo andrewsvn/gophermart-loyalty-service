@@ -1,32 +1,18 @@
-package repository
+package postgres
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/Masterminds/squirrel"
-	"github.com/andrewsvn/gophermart-ls/internal/db"
 	"github.com/andrewsvn/gophermart-ls/internal/model"
+	"github.com/andrewsvn/gophermart-ls/internal/repository"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
-type withdrawalRepository struct {
-	baseRepository
-	pgdb *db.PostgresDB
-}
-
-func newWithdrawalRepository(db *db.PostgresDB) *withdrawalRepository {
-	return &withdrawalRepository{
-		baseRepository: baseRepository{
-			pgdb: db,
-		},
-		pgdb: db,
-	}
-}
-
-func (r *withdrawalRepository) GetWithdrawalByID(ctx context.Context, wdID string) (*model.Withdrawal, error) {
-	sqlQuery, args, err := r.pgdb.Sqrl().
+func (ls *LoyaltyPgStorage) GetWithdrawalByID(ctx context.Context, wdID string) (*model.Withdrawal, error) {
+	sqlQuery, args, err := sqrl.
 		Select(withdrawalColumns).
 		From(withdrawalTableName).
 		Where(squirrel.Eq{"ID": wdID}).
@@ -35,20 +21,20 @@ func (r *withdrawalRepository) GetWithdrawalByID(ctx context.Context, wdID strin
 		return nil, fmt.Errorf("%w: %v", ErrInvalidQuery, err)
 	}
 
-	rows, err := r.query(ctx, nil, sqlQuery, args...)
+	rows, err := ls.query(ctx, nil, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("%w %s: %v", ErrExecuteSelect, withdrawalTableName, err)
 	}
 	defer rows.Close()
 
-	return r.withdrawalFromRow(rows)
+	return ls.withdrawalFromRow(rows)
 }
 
-func (r *withdrawalRepository) GetWithdrawalsByUserID(
+func (ls *LoyaltyPgStorage) GetWithdrawalsByUserID(
 	ctx context.Context,
 	userID uuid.UUID,
 ) ([]*model.Withdrawal, error) {
-	sqlQuery, args, err := r.pgdb.Sqrl().
+	sqlQuery, args, err := sqrl.
 		Select(withdrawalColumns).
 		From(withdrawalTableName).
 		Where(squirrel.Eq{"USER_ID": userID}).
@@ -57,17 +43,17 @@ func (r *withdrawalRepository) GetWithdrawalsByUserID(
 		return nil, fmt.Errorf("%w: %v", ErrInvalidQuery, err)
 	}
 
-	rows, err := r.query(ctx, nil, sqlQuery, args...)
+	rows, err := ls.query(ctx, nil, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("%w %s: %v", ErrExecuteSelect, withdrawalTableName, err)
 	}
 	defer rows.Close()
 
-	return r.withdrawalsFromRows(rows)
+	return ls.withdrawalsFromRows(rows)
 }
 
-func (r *withdrawalRepository) fetchWithdrawnSum(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (float64, error) {
-	sqlQuery, args, err := r.pgdb.Sqrl().
+func (ls *LoyaltyPgStorage) txFetchWithdrawnTotal(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (float64, error) {
+	sqlQuery, args, err := sqrl.
 		Select("COALESCE(SUM(AMOUNT), 0)").
 		From(withdrawalTableName).
 		Where(squirrel.Eq{"USER_ID": userID}).
@@ -76,7 +62,7 @@ func (r *withdrawalRepository) fetchWithdrawnSum(ctx context.Context, tx pgx.Tx,
 		return 0, err
 	}
 
-	rows, err := r.query(ctx, tx, sqlQuery, args...)
+	rows, err := ls.query(ctx, tx, sqlQuery, args...)
 	if err != nil {
 		return 0, fmt.Errorf("%w %s: %v", ErrExecuteSelect, withdrawalTableName, err)
 	}
@@ -93,17 +79,17 @@ func (r *withdrawalRepository) fetchWithdrawnSum(ctx context.Context, tx pgx.Tx,
 	return total, nil
 }
 
-func (r *withdrawalRepository) checkWithdrawalExists(ctx context.Context, tx pgx.Tx, wdID string) (bool, error) {
-	sqlQuery, args, err := r.pgdb.Sqrl().
+func (ls *LoyaltyPgStorage) CheckWithdrawalExists(ctx context.Context, tx pgx.Tx, wdID string) (bool, error) {
+	sqlQuery, args, err := sqrl.
 		Select("ID").
 		From(withdrawalTableName).
 		Where(squirrel.Eq{"ID": wdID}).
 		ToSql()
 	if err != nil {
-		return false, fmt.Errorf("%w %s: %v", ErrInvalidQuery, withdrawalTableName, err)
+		return false, fmt.Errorf("%w: %v", ErrInvalidQuery, err)
 	}
 
-	rows, err := r.query(ctx, tx, sqlQuery, args...)
+	rows, err := ls.query(ctx, tx, sqlQuery, args...)
 	if err != nil {
 		return false, fmt.Errorf("%w %s: %v", ErrExecuteSelect, withdrawalTableName, err)
 	}
@@ -111,14 +97,15 @@ func (r *withdrawalRepository) checkWithdrawalExists(ctx context.Context, tx pgx
 	return rows.Next(), nil
 }
 
-func (r *withdrawalRepository) createWithdrawal(
+func (ls *LoyaltyPgStorage) txCreateWithdrawal(
 	ctx context.Context,
 	tx pgx.Tx,
 	wdID string,
 	userID uuid.UUID,
 	amount float64,
 ) error {
-	sqlQuery, args, err := r.pgdb.Sqrl().Insert(withdrawalTableName).
+	sqlQuery, args, err := sqrl.
+		Insert(withdrawalTableName).
 		Columns("ID, USER_ID, AMOUNT").
 		Values(wdID, userID, amount).
 		ToSql()
@@ -126,24 +113,24 @@ func (r *withdrawalRepository) createWithdrawal(
 		return fmt.Errorf("%w: %v", ErrInvalidQuery, err)
 	}
 
-	_, err = r.exec(ctx, tx, sqlQuery, args...)
+	_, err = ls.exec(ctx, tx, sqlQuery, args...)
 	if err != nil {
 		return fmt.Errorf("%w %s: %w", ErrExecuteInsert, withdrawalTableName, err)
 	}
 	return nil
 }
 
-func (r *withdrawalRepository) withdrawalFromRow(rows pgx.Rows) (*model.Withdrawal, error) {
+func (ls *LoyaltyPgStorage) withdrawalFromRow(rows pgx.Rows) (*model.Withdrawal, error) {
 	if !rows.Next() {
-		return nil, ErrEntityNotFound
+		return nil, repository.ErrEntityNotFound
 	}
-	return r.scanWithdrawal(rows)
+	return ls.scanWithdrawal(rows)
 }
 
-func (r *withdrawalRepository) withdrawalsFromRows(rows pgx.Rows) ([]*model.Withdrawal, error) {
+func (ls *LoyaltyPgStorage) withdrawalsFromRows(rows pgx.Rows) ([]*model.Withdrawal, error) {
 	wds := make([]*model.Withdrawal, 0)
 	for rows.Next() {
-		wd, err := r.scanWithdrawal(rows)
+		wd, err := ls.scanWithdrawal(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -156,7 +143,7 @@ func (r *withdrawalRepository) withdrawalsFromRows(rows pgx.Rows) ([]*model.With
 	return wds, nil
 }
 
-func (r *withdrawalRepository) scanWithdrawal(rows pgx.Rows) (*model.Withdrawal, error) {
+func (ls *LoyaltyPgStorage) scanWithdrawal(rows pgx.Rows) (*model.Withdrawal, error) {
 	wd := model.Withdrawal{}
 	err := rows.Scan(&wd.ID, &wd.UserID, &wd.Sum, &wd.ProcessedAt)
 	if err != nil {

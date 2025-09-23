@@ -23,9 +23,9 @@ type IdentityClaims struct {
 }
 
 type IdentityProvider struct {
-	cfg        *config.AuthConfig
-	repoFacade *repository.Facade
-	secretKey  []byte
+	cfg         *config.AuthConfig
+	userStorage repository.UserStorage
+	secretKey   []byte
 
 	logger *zap.SugaredLogger
 }
@@ -36,30 +36,30 @@ var (
 
 func NewIdentityProvider(
 	cfg *config.AuthConfig,
-	rf *repository.Facade,
+	us repository.UserStorage,
 	l *zap.Logger,
-) (*IdentityProvider, error) {
+) *IdentityProvider {
 	logger := logging.ComponentLogger(l, "identity-provider")
 
 	var secretKey []byte
 	var err error
-
 	if cfg.IdpKeyBase64 != "" {
 		secretKey, err = base64.StdEncoding.DecodeString(cfg.IdpKeyBase64)
 		if err != nil {
-			return nil, fmt.Errorf("server secret key can't be decoded: %v", err)
+			logger.Warnw("configured server secret key can't be decoded", "error", err)
 		}
-	} else {
-		logger.Warn("IDP secret key is not configured, falling back to default one (insecure)")
+	}
+	if secretKey == nil {
+		logger.Warn("IDP secret key is not provided, falling back to default one (insecure)")
 		secretKey = []byte("gopherMarKET")
 	}
 
 	return &IdentityProvider{
-		cfg:        cfg,
-		repoFacade: rf,
-		secretKey:  secretKey,
-		logger:     logger,
-	}, nil
+		cfg:         cfg,
+		userStorage: us,
+		secretKey:   secretKey,
+		logger:      logger,
+	}
 }
 
 func (idp *IdentityProvider) GenerateAccessToken(userID uuid.UUID, authHash string) (string, error) {
@@ -85,7 +85,7 @@ func (idp *IdentityProvider) AuthorizeUser(ctx context.Context, accessToken stri
 		return nil, fmt.Errorf("%w: %v", ErrInvalidToken, err)
 	}
 
-	user, err := idp.repoFacade.GetUserByID(ctx, identityClaims.UserID)
+	user, err := idp.userStorage.GetUserByID(ctx, identityClaims.UserID)
 	if err != nil {
 		if errors.Is(err, repository.ErrEntityNotFound) {
 			return nil, ErrInvalidToken
