@@ -23,55 +23,55 @@ func NewLoyaltyPgStorage(pgdb *db.PostgresDB) *LoyaltyPgStorage {
 	}
 }
 
-func (r *LoyaltyPgStorage) UpdateOrderAccrual(
+func (ls *LoyaltyPgStorage) UpdateOrderAccrual(
 	ctx context.Context,
 	orderAccrual *model.OrderAccrual,
 	timestamp time.Time,
 ) error {
-	tx, err := r.pgdb.BeginTx(ctx)
+	tx, err := ls.pgdb.BeginTx(ctx)
 	if err != nil {
 		return err
 	}
-	defer r.pgdb.RollbackTx(ctx, tx)
+	defer ls.pgdb.RollbackTx(ctx, tx)
 
-	order, err := r.txGetOrderByID(ctx, tx, orderAccrual.OrderID)
+	order, err := ls.txGetOrderByID(ctx, tx, orderAccrual.OrderID)
 	if err != nil {
 		return err
 	}
-	if err = r.txSetOrderAccrual(ctx, tx, orderAccrual, timestamp); err != nil {
+	if err = ls.txSetOrderAccrual(ctx, tx, orderAccrual, timestamp); err != nil {
 		return err
 	}
 
 	if orderAccrual.Accrual != 0.0 {
-		if err = r.txUpdateUserBalance(ctx, tx, order.UserID); err != nil {
+		if err = ls.txUpdateUserBalance(ctx, tx, order.UserID); err != nil {
 			return err
 		}
 	}
 
-	r.pgdb.CommitTx(ctx, tx)
+	ls.pgdb.CommitTx(ctx, tx)
 	return nil
 }
 
-func (r *LoyaltyPgStorage) TryCreateWithdrawal(
+func (ls *LoyaltyPgStorage) TryCreateWithdrawal(
 	ctx context.Context,
 	wdID string,
 	userID uuid.UUID,
 	amount float64,
 ) error {
-	tx, err := r.pgdb.BeginTx(ctx)
+	tx, err := ls.pgdb.BeginTx(ctx)
 	if err != nil {
 		return err
 	}
-	defer r.pgdb.RollbackTx(ctx, tx)
+	defer ls.pgdb.RollbackTx(ctx, tx)
 
 	// lock user balance - exclusive operation
-	err = r.txLockUserBalance(ctx, tx, userID)
+	err = ls.txLockUserBalance(ctx, tx, userID)
 	if err != nil {
 		return err
 	}
 
 	// check if withdrawal with given ID already exists
-	exists, err := r.CheckWithdrawalExists(ctx, tx, wdID)
+	exists, err := ls.CheckWithdrawalExists(ctx, tx, wdID)
 	if err != nil {
 		return err
 	}
@@ -80,7 +80,7 @@ func (r *LoyaltyPgStorage) TryCreateWithdrawal(
 	}
 
 	// check aggregated balance for user
-	balance, err := r.txGetBalance(ctx, tx, userID)
+	balance, err := ls.txGetBalance(ctx, tx, userID)
 	if err != nil {
 		return err
 	}
@@ -89,33 +89,33 @@ func (r *LoyaltyPgStorage) TryCreateWithdrawal(
 	}
 
 	// create new withdrawal
-	err = r.txCreateWithdrawal(ctx, tx, wdID, userID, amount)
+	err = ls.txCreateWithdrawal(ctx, tx, wdID, userID, amount)
 	if err != nil {
 		return err
 	}
 
 	// update balance after new withdrawal
-	err = r.txUpdateUserBalance(ctx, tx, userID)
+	err = ls.txUpdateUserBalance(ctx, tx, userID)
 	if err != nil {
 		return err
 	}
 
-	r.pgdb.CommitTx(ctx, tx)
+	ls.pgdb.CommitTx(ctx, tx)
 	return nil
 }
 
-func (r *LoyaltyPgStorage) txUpdateUserBalance(
+func (ls *LoyaltyPgStorage) txUpdateUserBalance(
 	ctx context.Context,
 	tx pgx.Tx,
 	userID uuid.UUID,
 ) error {
-	accrued, err := r.txFetchAccruedTotal(ctx, tx, userID)
+	accrued, err := ls.txFetchAccruedTotal(ctx, tx, userID)
 	if err != nil {
 		return err
 	}
-	withdrawn, err := r.txFetchWithdrawnTotal(ctx, tx, userID)
+	withdrawn, err := ls.txFetchWithdrawnTotal(ctx, tx, userID)
 	if err != nil {
 		return err
 	}
-	return r.txUpdateBalance(ctx, tx, userID, accrued, withdrawn)
+	return ls.txUpdateBalance(ctx, tx, userID, accrued, withdrawn)
 }

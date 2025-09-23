@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (r *LoyaltyPgStorage) GetWithdrawalByID(ctx context.Context, wdID string) (*model.Withdrawal, error) {
+func (ls *LoyaltyPgStorage) GetWithdrawalByID(ctx context.Context, wdID string) (*model.Withdrawal, error) {
 	sqlQuery, args, err := sqrl.
 		Select(withdrawalColumns).
 		From(withdrawalTableName).
@@ -21,16 +21,16 @@ func (r *LoyaltyPgStorage) GetWithdrawalByID(ctx context.Context, wdID string) (
 		return nil, fmt.Errorf("%w: %v", ErrInvalidQuery, err)
 	}
 
-	rows, err := r.query(ctx, nil, sqlQuery, args...)
+	rows, err := ls.query(ctx, nil, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("%w %s: %v", ErrExecuteSelect, withdrawalTableName, err)
 	}
 	defer rows.Close()
 
-	return r.withdrawalFromRow(rows)
+	return ls.withdrawalFromRow(rows)
 }
 
-func (r *LoyaltyPgStorage) GetWithdrawalsByUserID(
+func (ls *LoyaltyPgStorage) GetWithdrawalsByUserID(
 	ctx context.Context,
 	userID uuid.UUID,
 ) ([]*model.Withdrawal, error) {
@@ -43,16 +43,16 @@ func (r *LoyaltyPgStorage) GetWithdrawalsByUserID(
 		return nil, fmt.Errorf("%w: %v", ErrInvalidQuery, err)
 	}
 
-	rows, err := r.query(ctx, nil, sqlQuery, args...)
+	rows, err := ls.query(ctx, nil, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("%w %s: %v", ErrExecuteSelect, withdrawalTableName, err)
 	}
 	defer rows.Close()
 
-	return r.withdrawalsFromRows(rows)
+	return ls.withdrawalsFromRows(rows)
 }
 
-func (r *LoyaltyPgStorage) txFetchWithdrawnTotal(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (float64, error) {
+func (ls *LoyaltyPgStorage) txFetchWithdrawnTotal(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (float64, error) {
 	sqlQuery, args, err := sqrl.
 		Select("COALESCE(SUM(AMOUNT), 0)").
 		From(withdrawalTableName).
@@ -62,7 +62,7 @@ func (r *LoyaltyPgStorage) txFetchWithdrawnTotal(ctx context.Context, tx pgx.Tx,
 		return 0, err
 	}
 
-	rows, err := r.query(ctx, tx, sqlQuery, args...)
+	rows, err := ls.query(ctx, tx, sqlQuery, args...)
 	if err != nil {
 		return 0, fmt.Errorf("%w %s: %v", ErrExecuteSelect, withdrawalTableName, err)
 	}
@@ -79,7 +79,7 @@ func (r *LoyaltyPgStorage) txFetchWithdrawnTotal(ctx context.Context, tx pgx.Tx,
 	return total, nil
 }
 
-func (r *LoyaltyPgStorage) CheckWithdrawalExists(ctx context.Context, tx pgx.Tx, wdID string) (bool, error) {
+func (ls *LoyaltyPgStorage) CheckWithdrawalExists(ctx context.Context, tx pgx.Tx, wdID string) (bool, error) {
 	sqlQuery, args, err := sqrl.
 		Select("ID").
 		From(withdrawalTableName).
@@ -89,7 +89,7 @@ func (r *LoyaltyPgStorage) CheckWithdrawalExists(ctx context.Context, tx pgx.Tx,
 		return false, fmt.Errorf("%w: %v", ErrInvalidQuery, err)
 	}
 
-	rows, err := r.query(ctx, tx, sqlQuery, args...)
+	rows, err := ls.query(ctx, tx, sqlQuery, args...)
 	if err != nil {
 		return false, fmt.Errorf("%w %s: %v", ErrExecuteSelect, withdrawalTableName, err)
 	}
@@ -97,7 +97,7 @@ func (r *LoyaltyPgStorage) CheckWithdrawalExists(ctx context.Context, tx pgx.Tx,
 	return rows.Next(), nil
 }
 
-func (r *LoyaltyPgStorage) txCreateWithdrawal(
+func (ls *LoyaltyPgStorage) txCreateWithdrawal(
 	ctx context.Context,
 	tx pgx.Tx,
 	wdID string,
@@ -113,24 +113,24 @@ func (r *LoyaltyPgStorage) txCreateWithdrawal(
 		return fmt.Errorf("%w: %v", ErrInvalidQuery, err)
 	}
 
-	_, err = r.exec(ctx, tx, sqlQuery, args...)
+	_, err = ls.exec(ctx, tx, sqlQuery, args...)
 	if err != nil {
 		return fmt.Errorf("%w %s: %w", ErrExecuteInsert, withdrawalTableName, err)
 	}
 	return nil
 }
 
-func (r *LoyaltyPgStorage) withdrawalFromRow(rows pgx.Rows) (*model.Withdrawal, error) {
+func (ls *LoyaltyPgStorage) withdrawalFromRow(rows pgx.Rows) (*model.Withdrawal, error) {
 	if !rows.Next() {
 		return nil, common.ErrEntityNotFound
 	}
-	return r.scanWithdrawal(rows)
+	return ls.scanWithdrawal(rows)
 }
 
-func (r *LoyaltyPgStorage) withdrawalsFromRows(rows pgx.Rows) ([]*model.Withdrawal, error) {
+func (ls *LoyaltyPgStorage) withdrawalsFromRows(rows pgx.Rows) ([]*model.Withdrawal, error) {
 	wds := make([]*model.Withdrawal, 0)
 	for rows.Next() {
-		wd, err := r.scanWithdrawal(rows)
+		wd, err := ls.scanWithdrawal(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -143,7 +143,7 @@ func (r *LoyaltyPgStorage) withdrawalsFromRows(rows pgx.Rows) ([]*model.Withdraw
 	return wds, nil
 }
 
-func (r *LoyaltyPgStorage) scanWithdrawal(rows pgx.Rows) (*model.Withdrawal, error) {
+func (ls *LoyaltyPgStorage) scanWithdrawal(rows pgx.Rows) (*model.Withdrawal, error) {
 	wd := model.Withdrawal{}
 	err := rows.Scan(&wd.ID, &wd.UserID, &wd.Sum, &wd.ProcessedAt)
 	if err != nil {

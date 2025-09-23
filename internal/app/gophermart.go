@@ -50,67 +50,67 @@ func NewGophermartApp(cfg *config.ServerConfig, l *zap.Logger) (*GophermartApp, 
 	return sl, nil
 }
 
-func (sl *GophermartApp) Start() {
-	sl.logger.Info("starting gophermart-loyalty-service")
-	sl.restServer.Start()
-	sl.accrualIntFlow.Start()
+func (app *GophermartApp) Start() {
+	app.logger.Info("starting gophermart-loyalty-service")
+	app.restServer.Start()
+	app.accrualIntFlow.Start()
 }
 
-func (sl *GophermartApp) Stop() {
+func (app *GophermartApp) Stop() {
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		defer logging.Sync(sl.logger)
-		sl.restServer.GracefulShutdown()
+		defer logging.Sync(app.logger)
+		app.restServer.GracefulShutdown()
 	}()
 	go func() {
 		defer wg.Done()
-		defer logging.Sync(sl.logger)
-		sl.accrualIntFlow.Shutdown()
+		defer logging.Sync(app.logger)
+		app.accrualIntFlow.Shutdown()
 	}()
 	wg.Wait()
 
-	sl.stor.Close()
-	sl.logger.Info("gophermart-loyalty-service stopped")
+	app.stor.Close()
+	app.logger.Info("gophermart-loyalty-service stopped")
 }
 
-func (sl *GophermartApp) initStorage() error {
-	sl.logger.Info("migrating database schema")
-	err := db.Migrate(sl.cfg.DatabaseURL, sl.logger)
+func (app *GophermartApp) initStorage() error {
+	app.logger.Info("migrating database schema")
+	err := db.Migrate(app.cfg.DatabaseURL, app.logger)
 	if err != nil {
 		return err
 	}
 
-	sl.logger.Info("initializing postgres storage")
-	pgdb, err := db.NewPostgresDB(sl.cfg.DatabaseURL)
+	app.logger.Info("initializing postgres storage")
+	pgdb, err := db.NewPostgresDB(app.cfg.DatabaseURL)
 	if err != nil {
 		return err
 	}
 
-	sl.stor = postgres.NewPgStorageManager(pgdb)
+	app.stor = postgres.NewPgStorageManager(pgdb)
 	return nil
 }
 
-func (sl *GophermartApp) initIdentityProvider() {
-	sl.logger.Info("initializing identity provider")
-	sl.idp = auth.NewIdentityProvider(&sl.cfg.AuthConfig, sl.stor.GetUserStorage(), sl.logger)
+func (app *GophermartApp) initIdentityProvider() {
+	app.logger.Info("initializing identity provider")
+	app.idp = auth.NewIdentityProvider(&app.cfg.AuthConfig, app.stor.GetUserStorage(), app.logger)
 }
 
-func (sl *GophermartApp) initRestServer() {
-	sl.logger.Info("initializing REST server")
+func (app *GophermartApp) initRestServer() {
+	app.logger.Info("initializing REST server")
 
-	userService := service.NewUserService(sl.stor.GetUserStorage(), sl.idp, sl.logger)
-	orderService := service.NewLoyaltyService(sl.stor.GetLoyaltyStorage(), sl.logger)
+	userService := service.NewUserService(app.stor.GetUserStorage(), app.idp, app.logger)
+	orderService := service.NewLoyaltyService(app.stor.GetLoyaltyStorage(), app.logger)
 
-	sl.restServer = handlers.NewRestServer(sl.cfg, sl.logger,
+	app.restServer = handlers.NewRestServer(app.cfg, app.logger,
 		handlers.NewUserManagementHandlers(userService),
-		handlers.NewLoyaltyManagementHandlers(orderService, sl.idp, sl.logger),
+		handlers.NewLoyaltyManagementHandlers(orderService, app.idp, app.logger),
 	)
 }
 
-func (sl *GophermartApp) initAccrualIntegrationFlow() {
-	sl.logger.Info("initializing accrual system integration")
-	sl.accrualIntFlow = accrual.NewIntegrationFlow(&sl.cfg.AccrualIntegrationConfig,
-		sl.stor.GetLoyaltyStorage(), sl.logger)
+func (app *GophermartApp) initAccrualIntegrationFlow() {
+	app.logger.Info("initializing accrual system integration")
+	app.accrualIntFlow = accrual.NewIntegrationFlow(&app.cfg.AccrualIntegrationConfig,
+		app.stor.GetLoyaltyStorage(), app.logger)
 }

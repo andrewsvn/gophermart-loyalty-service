@@ -12,11 +12,11 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (r *LoyaltyPgStorage) GetUserBalance(ctx context.Context, userID uuid.UUID) (*model.Balance, error) {
-	return r.txGetBalance(ctx, nil, userID)
+func (ls *LoyaltyPgStorage) GetUserBalance(ctx context.Context, userID uuid.UUID) (*model.Balance, error) {
+	return ls.txGetBalance(ctx, nil, userID)
 }
 
-func (r *LoyaltyPgStorage) txGetBalance(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (*model.Balance, error) {
+func (ls *LoyaltyPgStorage) txGetBalance(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (*model.Balance, error) {
 	sqlQuery, args, err := sqrl.
 		Select("BALANCE, WITHDRAWN").
 		From(balanceTableName).
@@ -26,7 +26,7 @@ func (r *LoyaltyPgStorage) txGetBalance(ctx context.Context, tx pgx.Tx, userID u
 		return nil, fmt.Errorf("%w: %v", ErrInvalidQuery, err)
 	}
 
-	rows, err := r.query(ctx, tx, sqlQuery, args...)
+	rows, err := ls.query(ctx, tx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("%w %s: %v", ErrExecuteSelect, balanceTableName, err)
 	}
@@ -43,7 +43,7 @@ func (r *LoyaltyPgStorage) txGetBalance(ctx context.Context, tx pgx.Tx, userID u
 	return balance, nil
 }
 
-func (r *LoyaltyPgStorage) txUpdateBalance(
+func (ls *LoyaltyPgStorage) txUpdateBalance(
 	ctx context.Context,
 	tx pgx.Tx,
 	userID uuid.UUID,
@@ -63,7 +63,7 @@ func (r *LoyaltyPgStorage) txUpdateBalance(
 		return fmt.Errorf("%w: %v", ErrInvalidQuery, err)
 	}
 
-	res, err := r.exec(ctx, tx, sqlQuery, args...)
+	res, err := ls.exec(ctx, tx, sqlQuery, args...)
 	if err != nil {
 		return fmt.Errorf("%w %s: %v", ErrExecuteUpdate, balanceTableName, err)
 	}
@@ -73,7 +73,7 @@ func (r *LoyaltyPgStorage) txUpdateBalance(
 	return nil
 }
 
-func (r *LoyaltyPgStorage) txLockUserBalance(ctx context.Context, tx pgx.Tx, userID uuid.UUID) error {
+func (ls *LoyaltyPgStorage) txLockUserBalance(ctx context.Context, tx pgx.Tx, userID uuid.UUID) error {
 	sqlQuery, args, err := sqrl.
 		Select("USER_ID").
 		From(balanceTableName).
@@ -84,7 +84,7 @@ func (r *LoyaltyPgStorage) txLockUserBalance(ctx context.Context, tx pgx.Tx, use
 		return fmt.Errorf("%w: %v", ErrInvalidQuery, err)
 	}
 
-	rows, err := r.query(ctx, tx, sqlQuery, args...)
+	rows, err := ls.query(ctx, tx, sqlQuery, args...)
 	if err != nil {
 		return fmt.Errorf("unable to lock user balance: %v", err)
 	}

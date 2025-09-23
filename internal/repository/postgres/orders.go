@@ -12,11 +12,11 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func (r *LoyaltyPgStorage) GetOrderByID(ctx context.Context, orderID string) (*model.Order, error) {
-	return r.txGetOrderByID(ctx, nil, orderID)
+func (ls *LoyaltyPgStorage) GetOrderByID(ctx context.Context, orderID string) (*model.Order, error) {
+	return ls.txGetOrderByID(ctx, nil, orderID)
 }
 
-func (r *LoyaltyPgStorage) txGetOrderByID(ctx context.Context, tx pgx.Tx, orderID string) (*model.Order, error) {
+func (ls *LoyaltyPgStorage) txGetOrderByID(ctx context.Context, tx pgx.Tx, orderID string) (*model.Order, error) {
 	sqlQuery, args, err := sqrl.
 		Select(orderColumns).
 		From(orderTableName).
@@ -26,16 +26,16 @@ func (r *LoyaltyPgStorage) txGetOrderByID(ctx context.Context, tx pgx.Tx, orderI
 		return nil, fmt.Errorf("%w: %v", ErrInvalidQuery, err)
 	}
 
-	rows, err := r.query(ctx, tx, sqlQuery, args...)
+	rows, err := ls.query(ctx, tx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrExecuteSelect, err)
 	}
 	defer rows.Close()
 
-	return r.orderFromRow(rows)
+	return ls.orderFromRow(rows)
 }
 
-func (r *LoyaltyPgStorage) GetOrdersByUserID(ctx context.Context, userID uuid.UUID) ([]*model.Order, error) {
+func (ls *LoyaltyPgStorage) GetOrdersByUserID(ctx context.Context, userID uuid.UUID) ([]*model.Order, error) {
 	sqlQuery, args, err := sqrl.
 		Select(orderColumns).
 		From(orderTableName).
@@ -45,16 +45,16 @@ func (r *LoyaltyPgStorage) GetOrdersByUserID(ctx context.Context, userID uuid.UU
 		return nil, fmt.Errorf("%w: %v", ErrInvalidQuery, err)
 	}
 
-	rows, err := r.query(ctx, nil, sqlQuery, args...)
+	rows, err := ls.query(ctx, nil, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("%w %s: %v", ErrExecuteSelect, orderTableName, err)
 	}
 	defer rows.Close()
 
-	return r.ordersFromRows(rows)
+	return ls.ordersFromRows(rows)
 }
 
-func (r *LoyaltyPgStorage) CreateNewOrder(ctx context.Context, orderID string, userID uuid.UUID) error {
+func (ls *LoyaltyPgStorage) CreateNewOrder(ctx context.Context, orderID string, userID uuid.UUID) error {
 	ts := time.Now()
 	sqlQuery, args, err := sqrl.
 		Insert(orderTableName).
@@ -79,7 +79,7 @@ func (r *LoyaltyPgStorage) CreateNewOrder(ctx context.Context, orderID string, u
 		return fmt.Errorf("%w: %v", ErrInvalidQuery, err)
 	}
 
-	res, err := r.exec(ctx, nil, sqlQuery, args...)
+	res, err := ls.exec(ctx, nil, sqlQuery, args...)
 	if err != nil {
 		return fmt.Errorf("%w %s: %v", ErrExecuteInsert, orderTableName, err)
 	}
@@ -90,7 +90,7 @@ func (r *LoyaltyPgStorage) CreateNewOrder(ctx context.Context, orderID string, u
 	return nil
 }
 
-func (r *LoyaltyPgStorage) txSetOrderAccrual(
+func (ls *LoyaltyPgStorage) txSetOrderAccrual(
 	ctx context.Context,
 	tx pgx.Tx,
 	orderAccrual *model.OrderAccrual,
@@ -108,7 +108,7 @@ func (r *LoyaltyPgStorage) txSetOrderAccrual(
 		return fmt.Errorf("%w: %v", ErrInvalidQuery, err)
 	}
 
-	res, err := r.exec(ctx, tx, sqlQuery, args...)
+	res, err := ls.exec(ctx, tx, sqlQuery, args...)
 	if err != nil {
 		return fmt.Errorf("%w %s: %v", ErrExecuteUpdate, orderTableName, err)
 	}
@@ -118,7 +118,7 @@ func (r *LoyaltyPgStorage) txSetOrderAccrual(
 	return nil
 }
 
-func (r *LoyaltyPgStorage) txFetchAccruedTotal(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (float64, error) {
+func (ls *LoyaltyPgStorage) txFetchAccruedTotal(ctx context.Context, tx pgx.Tx, userID uuid.UUID) (float64, error) {
 	sqlQuery, args, err := sqrl.
 		Select("COALESCE(SUM(ACCRUAL), 0)").
 		From(orderTableName).
@@ -128,7 +128,7 @@ func (r *LoyaltyPgStorage) txFetchAccruedTotal(ctx context.Context, tx pgx.Tx, u
 		return 0, fmt.Errorf("%w: %v", ErrInvalidQuery, err)
 	}
 
-	rows, err := r.query(ctx, tx, sqlQuery, args...)
+	rows, err := ls.query(ctx, tx, sqlQuery, args...)
 	if err != nil {
 		return 0, fmt.Errorf("%w %s: %w", ErrExecuteSelect, orderTableName, err)
 	}
@@ -145,7 +145,7 @@ func (r *LoyaltyPgStorage) txFetchAccruedTotal(ctx context.Context, tx pgx.Tx, u
 	return total, nil
 }
 
-func (r *LoyaltyPgStorage) FetchOrderIDsForUpdate(ctx context.Context, limit uint64) ([]string, error) {
+func (ls *LoyaltyPgStorage) FetchOrderIDsForUpdate(ctx context.Context, limit uint64) ([]string, error) {
 	filterQuery, _, err := sqrl.
 		Select("ID").
 		From(orderTableName).
@@ -167,7 +167,7 @@ func (r *LoyaltyPgStorage) FetchOrderIDsForUpdate(ctx context.Context, limit uin
 		return nil, fmt.Errorf("%w: %v", ErrInvalidQuery, err)
 	}
 
-	rows, err := r.query(ctx, nil, sqlQuery, args...)
+	rows, err := ls.query(ctx, nil, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("%w %s: %v", ErrExecuteUpdate, orderTableName, err)
 	}
@@ -189,7 +189,7 @@ func (r *LoyaltyPgStorage) FetchOrderIDsForUpdate(ctx context.Context, limit uin
 	return ids, nil
 }
 
-func (r *LoyaltyPgStorage) ResetPendingOrders(ctx context.Context) error {
+func (ls *LoyaltyPgStorage) ResetPendingOrders(ctx context.Context) error {
 	sqlQuery, args, err := sqrl.
 		Update(orderTableName).
 		Set("PENDING", false).
@@ -199,24 +199,24 @@ func (r *LoyaltyPgStorage) ResetPendingOrders(ctx context.Context) error {
 		return fmt.Errorf("%w: %v", ErrInvalidQuery, err)
 	}
 
-	_, err = r.exec(ctx, nil, sqlQuery, args...)
+	_, err = ls.exec(ctx, nil, sqlQuery, args...)
 	if err != nil {
 		return fmt.Errorf("%w %s: %v", ErrExecuteUpdate, orderTableName, err)
 	}
 	return nil
 }
 
-func (r *LoyaltyPgStorage) orderFromRow(rows pgx.Rows) (*model.Order, error) {
+func (ls *LoyaltyPgStorage) orderFromRow(rows pgx.Rows) (*model.Order, error) {
 	if !rows.Next() {
 		return nil, nil
 	}
-	return r.scanOrder(rows)
+	return ls.scanOrder(rows)
 }
 
-func (r *LoyaltyPgStorage) ordersFromRows(rows pgx.Rows) ([]*model.Order, error) {
+func (ls *LoyaltyPgStorage) ordersFromRows(rows pgx.Rows) ([]*model.Order, error) {
 	orders := make([]*model.Order, 0)
 	for rows.Next() {
-		order, err := r.scanOrder(rows)
+		order, err := ls.scanOrder(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -229,7 +229,7 @@ func (r *LoyaltyPgStorage) ordersFromRows(rows pgx.Rows) ([]*model.Order, error)
 	return orders, nil
 }
 
-func (r *LoyaltyPgStorage) scanOrder(rows pgx.Rows) (*model.Order, error) {
+func (ls *LoyaltyPgStorage) scanOrder(rows pgx.Rows) (*model.Order, error) {
 	var order model.Order
 	var userIDStr string
 	err := rows.Scan(&order.ID, &userIDStr, &order.Status, &order.Accrual, &order.UploadedAt, &order.UpdatedAt)
