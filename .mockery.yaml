@@ -1,0 +1,12 @@
+with-expecter: true
+packages:
+  github.com/andrewsvn/gophermart-ls/internal/repository:
+    interfaces:
+      UserStorage:
+        config:
+          dir: ./internal/mocks
+          outpkg: mocks
+      LoyaltyStorage:
+        config:
+          dir: ./internal/mocks
+          outpkg: mocks

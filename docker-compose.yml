@@ -1,0 +1,42 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gophermart-ls
+    ports:
+      - "${LS_PORT:-8080}:8080"
+    depends_on:
+      - pgdb
+    networks:
+      - gophermart-internal
+    env_file:
+      - .env
+    environment:
+      RUN_ADDRESS: 0.0.0.0:8080
+      ACCRUAL_SYSTEM_ADDRESS: ${ACCRUAL_SYSTEM_ADDRESS}
+      DB_HOST: pgdb
+      DATABASE_URI: postgres://${DB_USER}:${DB_PASS}@pgdb:${DB_PORT:-5432}/${DB_NAME}?sslmode=disable
+
+  pgdb:
+    image: postgres:17
+    container_name: gophermart-postgres
+    restart: unless-stopped
+    volumes:
+      - pg-storage:/var/lib/postgresql/data
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    networks:
+      - gophermart-internal
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASS}
+      POSTGRES_DB: ${DB_NAME}
+
+volumes:
+  pg-storage:
+
+networks:
+  gophermart-internal:
