@@ -70,7 +70,7 @@ func (pq *pollingQueue) isHungry() bool {
 
 func (pq *pollingQueue) updateWaitUntilTS(waitUntilTS time.Time) {
 	prevWaitTS := pq.WaitUntilTS.Load()
-	if prevWaitTS.Before(waitUntilTS) {
+	if prevWaitTS == nil || prevWaitTS.Before(waitUntilTS) {
 		pq.WaitUntilTS.Store(&waitUntilTS)
 		pq.logger.Debugw("stored a new timestamp for waiting", "waitUntilTS", waitUntilTS)
 	}

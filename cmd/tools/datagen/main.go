@@ -26,9 +26,12 @@ func main() {
 }
 
 const (
-	nUsers        int   = 5
-	nOrders       int   = 200
-	nWithdrawals  int   = 10
+	nUsers       int = 5
+	nOrders      int = 200
+	nWithdrawals int = 10
+)
+
+const (
 	maxAccrual    int64 = 1000
 	maxWithdrawal int64 = 2000
 )
@@ -57,15 +60,15 @@ func run() error {
 		return err
 	}
 
-	ctx := context.Background()
 	logger.Info("initializing storage")
-	pgdb, err := db.NewPostgresDB(ctx, cfg.DatabaseURL)
+	pgdb, err := db.NewPostgresDB(cfg.DatabaseURL)
 	if err != nil {
 		return err
 	}
 	defer pgdb.Close()
 
 	// do everything in transaction
+	ctx := context.Background()
 	tx, err := pgdb.Pool().Begin(ctx)
 	if err != nil {
 		return err

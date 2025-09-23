@@ -39,19 +39,19 @@ func NewIdentityProvider(
 	cfg *config.AuthConfig,
 	us repository.UserStorage,
 	l *zap.Logger,
-) (*IdentityProvider, error) {
+) *IdentityProvider {
 	logger := logging.ComponentLogger(l, "identity-provider")
 
 	var secretKey []byte
 	var err error
-
 	if cfg.IdpKeyBase64 != "" {
 		secretKey, err = base64.StdEncoding.DecodeString(cfg.IdpKeyBase64)
 		if err != nil {
-			return nil, fmt.Errorf("server secret key can't be decoded: %v", err)
+			logger.Warnw("configured server secret key can't be decoded", "error", err)
 		}
-	} else {
-		logger.Warn("IDP secret key is not configured, falling back to default one (insecure)")
+	}
+	if secretKey == nil {
+		logger.Warn("IDP secret key is not provided, falling back to default one (insecure)")
 		secretKey = []byte("gopherMarKET")
 	}
 
@@ -60,7 +60,7 @@ func NewIdentityProvider(
 		userStorage: us,
 		secretKey:   secretKey,
 		logger:      logger,
-	}, nil
+	}
 }
 
 func (idp *IdentityProvider) GenerateAccessToken(userID uuid.UUID, authHash string) (string, error) {

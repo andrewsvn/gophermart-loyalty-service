@@ -18,8 +18,8 @@ type PostgresDB struct {
 	dbpool *pgxpool.Pool
 }
 
-func NewPostgresDB(ctx context.Context, dsn string) (*PostgresDB, error) {
-	dbc, err := pgxpool.New(ctx, strings.Trim(dsn, "\""))
+func NewPostgresDB(dsn string) (*PostgresDB, error) {
+	dbc, err := pgxpool.New(context.Background(), strings.Trim(dsn, "\""))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create database connection: %w", err)
 	}

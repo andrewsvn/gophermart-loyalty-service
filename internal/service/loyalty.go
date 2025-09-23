@@ -19,7 +19,7 @@ type LoyaltyService struct {
 	logger  *zap.SugaredLogger
 }
 
-func NewOrderService(
+func NewLoyaltyService(
 	ls repository.LoyaltyStorage,
 	l *zap.Logger,
 ) *LoyaltyService {
