@@ -31,6 +31,13 @@ func newHarvester(
 	}
 }
 
+func (h *harvester) start(ctx context.Context, wg *sync.WaitGroup) {
+	h.cleanupPendingStatuses(ctx)
+
+	wg.Add(1)
+	go h.loop(ctx, wg)
+}
+
 func (h *harvester) loop(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 	defer h.logger.Info("order harvesting loop finished")
@@ -70,5 +77,13 @@ func (h *harvester) loop(ctx context.Context, wg *sync.WaitGroup) {
 		h.queue.appendOrderIDs(harvested...)
 		h.logger.Debugw("harvesting complete", "harvested", len(harvested))
 		nextHarvestTime = time.Now().Add(h.cfg.HarvestInterval)
+	}
+}
+
+func (h *harvester) cleanupPendingStatuses(ctx context.Context) {
+	err := h.storage.ResetPendingOrders(ctx)
+	if err != nil {
+		h.logger.Errorw("unable to clean pending status for orders",
+			"error", err)
 	}
 }

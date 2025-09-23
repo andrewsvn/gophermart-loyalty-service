@@ -35,7 +35,7 @@ func NewIntegrationFlow(
 	cfg := newConfiguration(intCfg)
 	results := make(chan *pollingResult, cfg.ResultBufferSize)
 
-	queue := newPollingQueue(cfg, ls, logger)
+	queue := newPollingQueue(cfg, logger)
 
 	return &IntegrationFlow{
 		cfg: cfg,
@@ -53,21 +53,16 @@ func NewIntegrationFlow(
 func (flow *IntegrationFlow) Start() {
 	produceCtx, cancel := context.WithCancel(context.Background())
 	flow.prodCancel = cancel
-	// if pending statuses on orders weren't cleaned up before, do this now
-	flow.queue.cleanupPendingStatuses(produceCtx)
 
 	flow.prodWG = &sync.WaitGroup{}
 	// accrual result processing
-	flow.prodWG.Add(1)
-	go flow.harvester.loop(produceCtx, flow.prodWG)
-
+	flow.harvester.start(produceCtx, flow.prodWG)
 	// polling pQueue
 	flow.poller.start(produceCtx, flow.prodWG)
 
 	// separate wait group for channel consumer to make sure it will stop after all others
 	flow.consWG = &sync.WaitGroup{}
-	flow.consWG.Add(1)
-	go flow.resultProc.loop(context.Background(), flow.consWG)
+	flow.resultProc.start(context.Background(), flow.consWG)
 
 	flow.logger.Infow("accrual integration flow started")
 }
@@ -81,6 +76,8 @@ func (flow *IntegrationFlow) Shutdown() {
 	close(flow.results)
 	flow.consWG.Wait()
 
-	flow.queue.cleanupPendingStatuses(context.Background())
+	// do this in the last moment to make sure no order update is ongoing
+	flow.harvester.cleanupPendingStatuses(context.Background())
+
 	flow.logger.Infow("accrual integration flow shut down successfully")
 }

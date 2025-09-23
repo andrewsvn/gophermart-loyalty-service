@@ -40,6 +40,11 @@ func newResultProcessor(
 	}
 }
 
+func (proc *resultProcessor) start(ctx context.Context, wg *sync.WaitGroup) {
+	wg.Add(1)
+	go proc.loop(ctx, wg)
+}
+
 func (proc *resultProcessor) loop(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 	defer proc.logger.Info("result processing loop finished")
