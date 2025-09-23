@@ -6,7 +6,7 @@ import (
 
 	"github.com/Masterminds/squirrel"
 	"github.com/andrewsvn/gophermart-ls/internal/model"
-	"github.com/andrewsvn/gophermart-ls/internal/repository/common"
+	"github.com/andrewsvn/gophermart-ls/internal/repository"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -122,7 +122,7 @@ func (ls *LoyaltyPgStorage) txCreateWithdrawal(
 
 func (ls *LoyaltyPgStorage) withdrawalFromRow(rows pgx.Rows) (*model.Withdrawal, error) {
 	if !rows.Next() {
-		return nil, common.ErrEntityNotFound
+		return nil, repository.ErrEntityNotFound
 	}
 	return ls.scanWithdrawal(rows)
 }

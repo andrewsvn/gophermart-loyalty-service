@@ -6,7 +6,7 @@ import (
 
 	"github.com/andrewsvn/gophermart-ls/internal/db"
 	"github.com/andrewsvn/gophermart-ls/internal/model"
-	"github.com/andrewsvn/gophermart-ls/internal/repository/common"
+	"github.com/andrewsvn/gophermart-ls/internal/repository"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -76,7 +76,7 @@ func (ls *LoyaltyPgStorage) TryCreateWithdrawal(
 		return err
 	}
 	if exists {
-		return common.ErrDuplicateEntity
+		return repository.ErrDuplicateEntity
 	}
 
 	// check aggregated balance for user
@@ -85,7 +85,7 @@ func (ls *LoyaltyPgStorage) TryCreateWithdrawal(
 		return err
 	}
 	if balance.Current < amount {
-		return common.ErrInsufficientBalance
+		return repository.ErrInsufficientBalance
 	}
 
 	// create new withdrawal

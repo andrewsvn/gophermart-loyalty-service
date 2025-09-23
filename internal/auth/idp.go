@@ -10,7 +10,6 @@ import (
 	"github.com/andrewsvn/gophermart-ls/internal/config"
 	"github.com/andrewsvn/gophermart-ls/internal/logging"
 	"github.com/andrewsvn/gophermart-ls/internal/repository"
-	errors2 "github.com/andrewsvn/gophermart-ls/internal/repository/common"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -88,7 +87,7 @@ func (idp *IdentityProvider) AuthorizeUser(ctx context.Context, accessToken stri
 
 	user, err := idp.userStorage.GetUserByID(ctx, identityClaims.UserID)
 	if err != nil {
-		if errors.Is(err, errors2.ErrEntityNotFound) {
+		if errors.Is(err, repository.ErrEntityNotFound) {
 			return nil, ErrInvalidToken
 		}
 		return nil, err

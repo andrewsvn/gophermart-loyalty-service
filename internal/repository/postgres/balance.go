@@ -7,7 +7,7 @@ import (
 
 	"github.com/Masterminds/squirrel"
 	"github.com/andrewsvn/gophermart-ls/internal/model"
-	"github.com/andrewsvn/gophermart-ls/internal/repository/common"
+	"github.com/andrewsvn/gophermart-ls/internal/repository"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -68,7 +68,7 @@ func (ls *LoyaltyPgStorage) txUpdateBalance(
 		return fmt.Errorf("%w %s: %v", ErrExecuteUpdate, balanceTableName, err)
 	}
 	if res.RowsAffected() == 0 {
-		return fmt.Errorf("%w: balance is not updated for user %s", common.ErrEntityNotFound, userID)
+		return fmt.Errorf("%w: balance is not updated for user %s", repository.ErrEntityNotFound, userID)
 	}
 	return nil
 }

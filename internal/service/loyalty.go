@@ -8,7 +8,6 @@ import (
 	"github.com/andrewsvn/gophermart-ls/internal/logging"
 	"github.com/andrewsvn/gophermart-ls/internal/model"
 	"github.com/andrewsvn/gophermart-ls/internal/repository"
-	errors2 "github.com/andrewsvn/gophermart-ls/internal/repository/common"
 	"github.com/andrewsvn/gophermart-ls/internal/utils"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -70,10 +69,10 @@ func (s *LoyaltyService) RegisterWithdrawal(ctx context.Context, userID uuid.UUI
 
 	err := s.storage.TryCreateWithdrawal(ctx, wdOrder.OrderID, userID, wdOrder.Sum)
 	if err != nil {
-		if errors.Is(err, errors2.ErrInsufficientBalance) {
+		if errors.Is(err, repository.ErrInsufficientBalance) {
 			return ErrNotEnoughBalance
 		}
-		if errors.Is(err, errors2.ErrDuplicateEntity) {
+		if errors.Is(err, repository.ErrDuplicateEntity) {
 			return ErrWithdrawalAlreadyExists
 		}
 		return fmt.Errorf("error creating withdrawal: %w", err)
